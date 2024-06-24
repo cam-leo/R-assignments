@@ -1,0 +1,733 @@
+---
+title: "PA_healthinsurance"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+date: "2024-01-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+install.packages("tidyverse")
+install.packages("corrplot")
+install.packages("hexbin")
+install.packages("randomForest")
+install.packages("e1071")
+install.packages("shiny")
+install.packages("htmltools")
+install.packages("DT")
+
+install.packages("htmltools", version = "0.5.6", dependencies = TRUE)
+install.packages("DT", dependencies = TRUE)
+
+```{r}
+library(tidyverse)
+load("C:/Users/megacrazyleo/Documents/health_insurance.RData")
+data <- health_insurance %>% 
+  mutate_if(is.character, as.factor)
+
+data %>% 
+  summary()
+
+```
+First, gather some basic data about the population: 
+
+The total number of people in this dataset is 1338 with 662 females and 676 males. Our youngest individual is 18 years of age whereas our oldest individual is 64.
+The max amount of children someone has is 5 whereas the lowest number of children one could have is 0.
+There are 1064 people who are non-smokers and 274 who are smokers. 
+The lowest BMI is 15.96 and the highest BMI is 53.13.
+There are 324 from the Northeast region, 325 from the Northwest, 364 from the Southeast and 325 from the Southwest.
+The average charges for an individial is 13270.
+
+If we wanted, we could also just manually find these values by performing functions on the dataset itself.
+```{r}
+n <- ncol(data)
+n
+```
+
+The minimum age is 
+```{r}
+min <- min(data$age)
+min
+```
+
+whereas the maximum age is 
+```{r}
+max<- max(data$age)
+max
+```
+
+We can use table function to quickly find the number of males and females
+```{r}
+table(data$sex)
+```
+Or we can use the dplyr function from the tidyverse package
+```{r}
+library(tidyverse)
+data %>% count(sex)
+```
+We can perform similar functions for both the smoker and region subpopulations
+```{r}
+data %>% count(smoker)
+data %>% count(region)
+```
+If we want to narrow it down to the number of men or number of women per region we can simply add on new arguments
+```{r}
+data %>% count(region,sex)
+```
+
+```{r}
+# Count of individuals by sex and age group
+data$age_group <- cut(data$age, breaks = c(17, 29, 40, 60, Inf), labels = c("18-29", "30-40", "41-60", "61+"))
+demographic_counts <- table(data$sex, data$age_group)
+
+# Visualize with a bar plot
+barplot(demographic_counts, beside = TRUE, col = c("lightblue", "lightpink"),
+        main = "Demographic Distribution by Age Group", xlab = "Age Group", ylab = "Count", legend = TRUE)
+
+
+
+```
+
+
+Similarily for men who are smokers with children
+```{r}
+data_men <- data %>% 
+  filter(sex == "male")
+data_men %>% count(children,smoker,)
+
+```
+We want to visualize a range of values for BMI thus let's using a histogram
+```{r}
+hist(data$bmi, col= "lightgreen", main="BMI Distribution", xlab = "BMI")
+```
+
+From this plot we can see that the highest frequencies are at a BMI centered around 30
+
+Similarily for age:
+```{r}
+hist(data$age, col = "skyblue", main = "Age Distribution", xlab = "Age")
+
+```
+
+
+To find out how many male/females at each age:
+```{r}
+number_of_male_female <- data %>% count(age,sex)
+number_of_male_female
+
+```
+Or we could do it based on age ranges
+```{r}
+# data %>% count(age %in% 18:25, sex)
+age_groups <- data %>%
+  mutate(age_group = case_when(
+    age %in% 18:29 ~ '18-29',
+    age %in% 30:40 ~ '30-40',
+    age %in% 41:60 ~ '41-60',
+    age >= 61 ~ '61+'
+  )) %>%
+  count(age_group, sex)
+
+print(age_groups)
+
+data_age_groups <- as.data.frame(age_groups)
+```
+Plotting the data onto a barplot:
+```{r}
+barplot(demographic_counts, beside = TRUE, col = c("lightblue", "lightpink"),
+        main = "Number of Male and Females in each Age Group", xlab = "Age Group", ylab = "Count", legend = TRUE)
+
+
+```
+
+We can also use ggplot2 to plot the data out:
+```{r}
+library(ggplot2)
+ggplot(data_age_groups, aes(x = age_group, y = n, fill = sex)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Number of Males and Females in Each Age Group",
+       x = "Age Group", y = "Count") +
+  scale_fill_manual(values = c("lightblue", "lightpink"))
+ 
+```
+
+We want to see if there exists correlation between our variables so let's create a correlation matrix:
+```{r}
+library(corrplot)
+cor_matrix <- cor(data[, c("age", "bmi", "children", "charges")])
+corrplot(cor_matrix, method = "color")
+
+
+```
+
+From this matrix we can infer a few things:
+
+1) Nothing here has a negative correlation, which indicates an overall positive correlation trend among all variables
+
+2) Age and BMI as well as BMI and charges have a slight positive correlation
+
+3) Age and charges seems to have the biggest positive correlation at ~0.4
+
+This could imply that as age increases, so does BMI and charges as well
+
+
+## Relationship between Smoking and Charges
+
+To see the relationship between smoking and charges, we can perform t-tests as well as chi-square tests:
+```{r}
+summary(data$charges[data$smoker == "yes"])
+summary(data$charges[data$smoker == "no"])
+
+```
+From a quick glance we can see that on average, non-smokers paid less on average for insurance charges
+
+
+```{r}
+boxplot(data$charges ~ data$smoker, col = c("cyan", "red"),
+        main = "Insurance Charges by Smoking Status", xlab = "Smoker", ylab = "Insurance Charges")
+results<-t.test(data$charges[data$smoker == "yes"], data$charges[data$smoker == "no"])
+print(results)
+```
+
+At first glance, our t-value is a quite big which could suggest a large difference between the means of smokers and non-smokers for charges. Note that it is positive which implies that the smokers on average have a greater charge than non-smokers.
+If we look at our p-value, we can see it is significantly below 0.05 hence coupled with our t-value we can conclude that the t-test shows that smokers have significantly higher average charges than non-smokers
+
+
+
+
+```{r}
+plot(data$bmi, data$charges, col = ifelse(data$smoker == "yes", "red", "blue"),
+     pch = 16, main = "BMI vs. Insurance Charges by Smoking Status", xlab = "BMI", ylab = "Insurance Charges")
+
+
+
+```
+
+We can see from this scatterplot that the spread of BMI was roughly equal for smokers (red) and non-smokers (blue). The insurance charges for smokers was overall higher across the board, with a spike in distribution once BMI was greater than 30
+
+
+
+
+```{r}
+library(ggplot2)
+ggplot(data, aes(x = smoker, y = charges)) +
+  geom_violin(fill = "lightblue") +
+  labs(title = "Insurance Charges by Smoking Status", x = "Smoker", y = "Insurance Charges")
+
+```
+
+
+
+## Relationship between BMI and charges
+
+```{r}
+summary(data$charges)
+summary(data$bmi)
+plot(data$bmi, data$charges, col = "blue", pch = 16,
+     main = "BMI vs. Insurance Charges", xlab = "BMI", ylab = "Insurance Charges")
+cor(data$bmi, data$charges)
+library(ggplot2)
+ggplot(data, aes(x = bmi, y = charges)) +
+  geom_point(color = "blue", alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "BMI vs. Insurance Charges", x = "BMI", y = "Insurance Charges")
+library(hexbin)
+hb <- hexbin(data$bmi, data$charges, xbins = 20)
+plot(hb, main = "Hexbin Plot: BMI vs. Insurance Charges", xlab = "BMI", ylab = "Insurance Charges")
+cor.test(data$bmi, data$charges, method = "pearson")
+lm_model <- lm(charges ~ bmi, data = data)
+summary(lm_model)
+
+```
+Since our dataset is large, we can use a hexbin plot to further analyze the distribution. We can see that at a BMI of ~28-30, we have the highest density of people iwth insurance charges less than 10000. 
+
+## Relationship between Age and Charges
+
+Let's determine if there exists a relation between the age of an individual and the amount of their charges
+```{r}
+avg_charges_by_age <- tapply(data$charges, data$age, mean)
+
+plot(names(avg_charges_by_age), avg_charges_by_age, type = "o", col = "blue",
+     main = "Average Insurance Charges by Individual Age", xlab = "Age", ylab = "Average Charges")
+
+```
+
+
+
+We use an O plot here instead of a B plot to better see the trends
+
+Note if we fit a trend line to the plot:
+```{r}
+plot(names(avg_charges_by_age), avg_charges_by_age, type = "o", col = "blue",
+     main = "Average Insurance Charges by Individual Age", xlab = "Age", ylab = "Average Charges")
+loess_model <- loess(avg_charges_by_age ~ as.numeric(names(avg_charges_by_age)))
+lines(as.numeric(names(avg_charges_by_age)), predict(loess_model), col = "red")
+```
+Here, it is evident that there is a positive trend with charges regarding age. 
+
+Let's generalize the data more into age groups instead of individual ages:
+```{r}
+
+avg_charges_by_age_group <- tapply(data$charges, data$age_group, mean)
+
+barplot(avg_charges_by_age_group, col = "skyblue",
+        main = "Average Insurance Charges by Age Group", xlab = "Age Group", ylab = "Average Charges")
+```
+Here, it is evident the older age groups spend more on charges than the groups previous to them
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Suppose we want to predict what the insurance charges would be based on one's BMI.
+```{r}
+Female <- filter(data, sex=="female") #this will be our independent variable
+pred_charge <- lm(charges ~ bmi, data=data)
+summary(pred_charge)
+plot(pred_charge)
+```
+
+
+Now suppose we want to predict the charges based on the sex and the bmi
+```{r}
+data_female <- data[data$sex=="female",]
+female_predicted <- lm(charges ~ bmi, data=data_female)
+```
+
+```{r}
+children_predicted <- lm(charges~children, data=data)
+```
+
+## Relationship between Region and Charges
+
+Let us see if there exists a relation between the region an individual inhabits and the charges they possess
+```{r}
+region_counts <- table(data$region)
+
+pie(region_counts, labels = names(region_counts), main = "Distribution by Region")
+
+```
+
+From this pie chart, we can see each region roughly holds an equivalent portion
+
+```{r}
+avg_charges_by_region <- tapply(data$charges, data$region, mean)
+
+barplot(avg_charges_by_region, col = c("lightblue", "lightgreen", "lightpink", "lightyellow"),
+        main = "Average Insurance Charges by Region", ylab = "Average Charges")
+
+```
+At a quick glance, the southeast region seems to have the highest average charges, followed by the northeast and finally the northwest and southwest. To get further information, let's perform an ANOVA test
+```{r}
+
+
+anova_result <- aov(charges ~ region, data = data)
+
+summary(anova_result)
+
+
+```
+Note here out p value is less than 0.05 and our F-value is 2.97, hence this suggests that we reject our null hypothesis of the means among the regions being equal and that there exists a significant difference in means between at least one of the regions
+
+```{r}
+
+tukey_results <- TukeyHSD(anova_result)
+print(tukey_results)
+
+```
+We can see from our tukey test that the p-value for the Southwest and Southeast regions is below 0.05, hence the means are significantly different. The other regions have p-values of ~0.05 or >0.05 therefore it is inconclusive about their differences in means.
+
+
+```{r}
+demographic_counts_by_region <- table(data$region, data$sex)
+
+col_palette <- c("skyblue", "lightcoral", "lightgreen", "lightsalmon")
+
+barplot(demographic_counts_by_region, beside = TRUE, col = col_palette,
+        main = "Demographic Distribution by Region", xlab = "Region", ylab = "Count", legend = TRUE)
+
+```
+
+```{r}
+smoking_counts_by_region <- table(data$region, data$smoker)
+
+col_palette <- c("lightblue", "lightgreen", "lightcoral", "lightsalmon")
+
+barplot(smoking_counts_by_region, beside = TRUE, col = col_palette,
+        main = "Smoking Distribution by Region", xlab = "Region", ylab = "Count", legend = TRUE)
+
+
+```
+
+```{r}
+library(corrplot)
+data_by_region <- split(data, data$region)
+
+correlation_matrices <- lapply(data_by_region, function(subdata) cor(subdata[, c("age", "bmi", "children", "charges")]))
+
+lapply(correlation_matrices, function(cor_matrix) corrplot(cor_matrix, method = "color"))
+
+```
+
+## Predicting Charges of an Individual
+
+Given the age,sex,BMI, number of children, if they are a smoker, and the region they are from, we want to be able to predict the charges that an individual would have. We will perform regression analysis:
+
+```{r}
+# Here we are converting variables sex and smoker into factors
+data$sex <- as.factor(data$sex)
+data$smoker <- as.factor(data$smoker)
+
+data2 <- cbind(data, model.matrix(~ region - 1, data = data))
+model <- lm(charges ~ age + sex + bmi + children + smoker + region, data = data2)
+summary(model)
+```
+Our intercept estimate is -11938.5, we can ignore this since this is the expected value when all other variables are 0 hence this is redundant.
+The age estimate is 256.9 which means that the charges are estimated to be increased by 256.9 for every additional unit of age (year).
+The sexmale estimate is -131.3 which would normally suggest that the charges for males are lower but since our p-value is greater than 0.05, we can conclude this variable is not statistically significant.
+The BMI estimate is 339.2 which means that for every unit increase in BMI, the charges increase by 339.2.
+The children estimate is 475.5 which means for every additional child an individual has, the charges increases by 475.5.
+For the smokeryes variable, this has an estimate of 23848.5 with a very small p-value. This means that if an individual is a smoker, then their charges are estimated to increase by 23848.5, by far the largest margin of the variables so far.
+
+We can see that the southeast region has an estimate of -1035 compared to our northeast region which seems to contradict our previous barplot. Hence check for normality of residuals and homoscedasticity.
+
+```{r}
+
+qqnorm(residuals(model))
+qqline(residuals(model))
+
+
+plot(fitted(model), residuals(model), col = "blue", pch = 16,
+     main = "Residuals vs. Fitted", xlab = "Fitted Values", ylab = "Residuals")
+
+```
+We can also remove variables that are not significant in our regression ie those with p-val's greater than 0.05
+
+```{r}
+model_new <- lm(charges ~ age + bmi + children + smoker, data = data2)
+summary(model_new)
+
+```
+```{r}
+qqnorm(residuals(model_new))
+qqline(residuals(model_new))
+
+
+plot(fitted(model_new), residuals(model_new), col = "blue", pch = 16,
+     main = "Residuals vs. Fitted", xlab = "Fitted Values", ylab = "Residuals")
+
+```
+From our Q-Q plot, we can see that this data does not follow normality. From our homoscedasticity plot, the large gap indicates that we have non-constant variance of residuals. To fix our Q-Q plot, we can transform our charges:
+
+```{r}
+data2$log_charges <- log(data2$charges + 1)  # we add 1 here to handle zero values
+model_transformed <- lm(log_charges ~ age + bmi + children + smoker, data = data2)
+summary(model_transformed)
+
+
+```
+Our new Q-Q plot:
+
+```{r}
+residuals_log_model <- residuals(model_transformed)
+qqnorm(residuals_log_model)
+qqline(residuals_log_model)
+
+```
+We can still see deviation from normality even with log transform here.
+
+```{r}
+library(e1071)  
+skewness(residuals_log_model)
+kurtosis(residuals_log_model)
+
+
+```
+Our skewness being 1.603566 and our kurtosis being 4.176954 indicates that our distribution of residuals is not symmetric and possibly has heavy tails. Hence perform another transformation:
+
+```{r}
+library(MASS)
+
+model_robust <- rlm(log_charges ~ age + bmi + children + smoker, data = data2)
+summary(model_robust)
+plot(model_robust)
+
+
+
+```
+
+We will check for outliers for our homoscedasticity:
+
+```{r}
+plot(model_transformed, which = 1)
+
+```
+```{r}
+data2$sqrt_charges <- sqrt(data2$charges)
+model_sqrt <- rlm(sqrt_charges ~ age + bmi + children + smoker, data = data2)
+
+```
+
+## Prediction of an Individual's charges example
+
+Here we will do a quick example:
+```{r}
+new_data <- data.frame(age = c(34), sex = factor(c("male")), bmi = c(27), children = c(0), smoker = factor(c("yes")), region = factor(c("northeast")))
+
+predictions <- predict(model_robust, newdata = new_data)
+print(predictions)
+prediction_interval <- predict(model_robust, newdata = new_data, interval = "prediction", level = 0.95)
+print(prediction_interval)
+
+```
+To get our our predicted non-transformed value:
+```{r}
+original_scale_predictions <- exp(predictions)
+print(original_scale_predictions)
+```
+As we can see, a male of age 34 with a BMI of 27 and no children and is a smoker from the Northeast region would have a predicted charge of 20945.37 which is in line with our model and dataset.
+
+
+
+
+```{r}
+# Check for missing/infinite values in 'age' and 'charges'
+any(is.infinite(data2$age))  
+any(is.infinite(data2$charges))  
+
+```
+
+
+## Interactive histogram
+
+```{r}
+library(shiny)
+library(dplyr)
+
+
+
+
+ui <- fluidPage(
+  titlePanel("Interactive Histogram"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("variable", "Choose Variable:",
+                  choices = c("age", "bmi"),
+                  selected = "age"),
+      sliderInput("range", "Select Range:",
+                  min = min(data$age),
+                  max = max(data$age),
+                  value = c(min(data$age), max(data$age)),
+                  step = 1)
+    ),
+    mainPanel(
+      plotOutput("histogram")
+    )
+  )
+)
+
+
+server <- function(input, output) {
+  # Reactive expression to filter data based on user inputs
+  filtered_data <- reactive({
+    data %>%
+      filter(get(input$variable) >= input$range[1],
+             get(input$variable) <= input$range[2])
+  })
+
+
+  output$histogram <- renderPlot({
+    if (length(unique(filtered_data()$charges)) > 1) {
+      hist(filtered_data()$charges, main = "Distribution of Charges",
+           xlab = "Charges", col = "lightblue", border = "black")
+    } else {
+      plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+      text(1, 1, "Not enough data for a histogram.", cex = 1.5, col = "red")
+    }
+  })
+}
+
+
+shinyApp(ui = ui, server = server)
+
+
+```
+
+
+
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
