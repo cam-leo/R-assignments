@@ -1,0 +1,401 @@
+---
+title: "STAC51 A3"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+date: "2024-03-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+###Q1a)
+```{r}
+x <- c(5, 3, 4, 5, 4, 6, 5, 3, 6, 5)
+y <- c(53, 34, 45, 49, 45, 77, 62, 37, 75, 54)
+data <- data.frame(x, y)
+model <- glm(y ~ x, family = poisson(link = "log"), data = data)
+summary(model)
+```
+###Q1b)
+```{r}
+full_model <- glm(y ~ x, family = poisson(link = "log"), data = data)
+reduced_model <- glm(y ~ 1, family = poisson(link = "log"), data = data)
+lrt <- anova(reduced_model, full_model, test = "Chisq")
+lrt
+```
+We have a p value of 1.098e-0.8 which is less than 0.05, therefore we reject the null hypothesis. This means the relationship between our X and Y is statistically significant.
+
+###Q1c)
+```{r}
+y <- c(53, 34, 45, 49, 45, 77, 62, 37, 75, 54)
+likelihoods <- dpois(y, lambda = y)
+max_likelihood <- prod(likelihoods)
+max_likelihood
+log_likelihoods <- dpois(y, lambda = y, log = TRUE)
+sum_log_likelihood <- sum(log_likelihoods)
+max_likelihood <- exp(sum_log_likelihood)
+max_likelihood
+
+```
+Our likelihood here is 2.807787e-13
+
+###Q1d)
+```{r}
+x <- c(5, 3, 4, 5, 4, 6, 5, 3, 6, 5)
+y <- c(53, 34, 45, 49, 45, 77, 62, 37, 75, 54)
+full_model <- glm(y ~ x, family = poisson(link = "log"))
+alpha <- coef(full_model)[1]
+beta <- coef(full_model)[2]
+mu <- exp(alpha + beta * x)
+log_likelihood <- sum(dpois(y, lambda = mu, log = TRUE))
+likelihood <- exp(log_likelihood)
+format(likelihood, scientific = TRUE)
+
+```
+Our likelihood here is 8.115431e-14
+
+###Q1e)
+```{r}
+y <- c(53, 34, 45, 49, 45, 77, 62, 37, 75, 54)
+mu <- mean(y)
+log_likelihood_reduced <- sum(dpois(y, lambda = mu, log = TRUE))
+likelihood_reduced <- exp(log_likelihood_reduced)
+format(likelihood_reduced, scientific = TRUE)
+
+```
+Our reduced likelihood is 6.569379e-21
+
+###Q1f)
+```{r}
+log_likelihood_saturated <- sum(dpois(y, lambda = y, log = TRUE))
+null_deviance <- -2 * (log_likelihood_reduced - log_likelihood_saturated)
+residual_deviance <- -2 * (log_likelihood - log_likelihood_saturated)
+list(null_deviance = format(null_deviance, scientific = TRUE), 
+     residual_deviance = format(residual_deviance, scientific = TRUE))
+
+```
+
+
+###Question 2c)
+```{r}
+obs_freq <- c(11, 14, 24, 22, 29)
+log_likelihood <- function(para) {
+  x <- para[1]
+  y <- para[2]
+  pi5 <- 1-(2*x) - (2*y)
+  
+  if (x <= 0 || y <= 0 || pi5 <= 0) {
+    return(1e6)  
+  }
+  
+  ll <- sum(obs_freq[1:2])*log(x) +
+        sum(obs_freq[3:4])*log(y) +
+        obs_freq[5]*log(pi5)
+  return(-ll)  
+}
+init_para <- c(0.25, 0.25)  
+mle <- optim(init_para, log_likelihood, method = "L-BFGS-B", lower = c(0,0), upper = c(1,1))
+x_mle <- mle$par[1]
+y_mle <- mle$par[2]
+pi5_mle <- 1 - 2*x_mle - 2*y_mle
+
+```
+Our MLE for pi1 and pi2 ie x is 0.1250012. Our MLE for pi3 and pi4 ie y is 0.229984. Our MLE for pi5 is 0.2900008
+
+###Question 2d)
+```{r}
+total <- sum(obs_freq)
+p1_p2 <- sum(obs_freq[1:2]) / total
+p3_p4 <- sum(obs_freq[3:4]) / total
+p5 <- obs_freq[5] / total
+expected <- c(p1_p2, p1_p2, p3_p4, p3_p4, p5)*total
+chi_square_test <- chisq.test(x = obs_freq, p = expected, rescale.p = TRUE)
+print(chi_square_test)
+
+```
+
+###Question 2e)
+```{r}
+total_obs <- sum(obs_freq)
+estimated_probs_full <- obs_freq / total_obs
+logLik_full <- sum(obs_freq * log(estimated_probs_full))
+p1_p2 <- sum(obs_freq[1:2]) / total_obs
+p3_p4 <- sum(obs_freq[3:4]) / total_obs
+p5 <- obs_freq[5] / total_obs
+expected_under_H0 <- c(p1_p2, p1_p2, p3_p4, p3_p4, p5) * total_obs
+logLik_reduced <- sum(obs_freq * log(expected_under_H0))
+library(lmtest)
+
+test_statistic <- -2 * (logLik_full - logLik_reduced)
+
+
+df <- 4 - 2
+
+p_value <- pchisq(test_statistic, df, lower.tail = FALSE)
+
+alpha <- 0.05
+if (p_value < alpha) {
+  cat("Reject the null hypothesis H0 with a p-value of", p_value, "\n")
+} else {
+  cat("Do not reject the null hypothesis H0 with a p-value of", p_value, "\n")
+}
+
+```
+
+
+###Q3a)
+```{r}
+library(MASS) 
+library(ggplot2) 
+
+N <- 100
+pi0 <- c(0.15, 0.15, 0.3, 0.4)
+pi1 <- c(0.1, 0.2, 0.3, 0.4)
+alpha <- 0.05
+
+calculate_power <- function(N, pi0, pi1, alpha, num_simulations=10000) {
+  num_rejections <- 0
+  
+  for (i in 1:num_simulations) {
+    sample <- rmultinom(n=1, size=N, prob=pi1)
+    
+    test <- chisq.test(sample, p=pi0)
+    
+    if (test$p.value < alpha) {
+      num_rejections <- num_rejections + 1
+    }
+  }
+  
+  power <- num_rejections / num_simulations
+  return(power)
+}
+
+power <- calculate_power(N, pi0, pi1, alpha)
+
+print(power)
+
+
+```
+
+###Q3b)
+```{r}
+library(MASS) 
+critical_value <- qchisq(1 - alpha, df = length(pi0) - 1)
+
+likelihood_ratio_test_stat <- function(observed, expected) {
+  return(2 * sum(observed * log(observed / expected)))
+}
+
+calculate_power_LRT <- function(N, pi0, pi1, alpha, num_simulations=10000) {
+  num_rejections <- 0
+  
+  for (i in 1:num_simulations) {
+    sample <- rmultinom(1, size=N, prob=pi1)
+    sample <- matrix(sample, nrow = length(pi1), ncol = 1) 
+    
+    expected <- N * pi0
+    
+    LRT_stat <- likelihood_ratio_test_stat(sample, expected)
+    
+    if (LRT_stat > critical_value) {
+      num_rejections <- num_rejections + 1
+    }
+  }
+  
+  power <- num_rejections / num_simulations
+  return(power)
+}
+
+power_LRT <- calculate_power_LRT(N, pi0, pi1, alpha)
+print(power_LRT)
+
+
+
+```
+
+###Q3c)
+```{r}
+library(MASS) 
+target_power <- 0.90
+
+N <- 100 
+power <- 0
+num_simulations <- 10000
+
+calculate_power <- function(N, pi0, pi1, alpha, num_simulations) {
+  num_rejections <- 0
+  for (i in 1:num_simulations) {
+    sample <- rmultinom(n = 1, size = N, prob = pi1)
+    test <- chisq.test(sample, p = pi0)
+    if (test$p.value < alpha) {
+      num_rejections <- num_rejections + 1
+    }
+  }
+  power <- num_rejections / num_simulations
+  return(power)
+}
+
+while (power < target_power) {
+  power <- calculate_power(N, pi0, pi1, alpha, num_simulations)
+  if (power < target_power) {
+    N <- N + 10 
+  }
+}
+
+cat("The minimum sample size needed to achieve a power of at least", target_power, "is", N, "with an estimated power of", power, "\n")
+
+
+```
+
+
+###Q3d)
+```{r}
+library(MASS) 
+N <- 10 
+power <- 0
+num_simulations <- 10000
+
+
+likelihood_ratio_test_stat <- function(obs_freq, expected) {
+  expected <- ifelse(expected == 0, 0.5, expected)
+  obs_freq <- ifelse(obs_freq == 0, 0.5, obs_freq)
+  return(2 * sum(obs_freq * log(obs_freq / expected)))
+}
+
+
+calculate_power_LRT <- function(N, pi0, pi1, alpha, num_simulations) {
+  num_rejections <- 0
+  critical_value <- qchisq(1 - alpha, df = length(pi0) - 1)
+  
+  for (i in 1:num_simulations) {
+    sample <- rmultinom(1, size = N, prob = pi1)
+    expected <- ifelse(N * pi0 == 0, 1, N * pi0)
+    LRT_stat <- likelihood_ratio_test_stat(sample, expected)
+    if (LRT_stat > critical_value) {
+      num_rejections <- num_rejections + 1
+    }
+  }
+  power <- num_rejections / num_simulations
+  return(power)
+}
+
+while (power < target_power) {
+  power <- calculate_power_LRT(N, pi0, pi1, alpha, num_simulations)
+  if (power < target_power) {
+    N <- N + 10 
+  } else {
+    break 
+  }
+}
+
+cat("The minimum sample size needed for the LRT to achieve a power of at least", target_power, "is", N, "with an estimated power of", power, "\n")
+
+
+```
+
+###Question 4a)
+```{r}
+data <- data.frame(
+  DoseLevel = c(0, 1, 2, 3, 4, 5),
+  Dead = c(1, 4, 9, 13, 18, 20),
+  Total = rep(20, 6)  
+)
+
+model <- glm(cbind(Dead, Total - Dead) ~ DoseLevel, data = data, family = binomial)
+
+summary(model)
+
+```
+The logistic regression equation in terms of log-odds (logit function) is:
+
+$$
+\log\left(\frac{p}{1 - p}\right) = -2.8186 + 1.2589 \cdot x
+$$
+
+The intercept ie ($\beta_0$) is -2.8186.
+The coefficient for dose level ie ($\beta_1$) is 1.2589.
+
+Thus for every one-unit increase in dose level, the log-odds of a moth dying inc's by 1.2589.
+
+To find the probability of death $p$ from the dose level $x$, use the logistic function:
+
+$$
+p = \frac{1}{1 + e^{-(\beta_0 + \beta_1 \cdot x)}}
+$$
+
+Plugging in the coefficients, the equation for $p$ becomes:
+
+$$
+p = \frac{1}{1 + e^{2.8186 - 1.2589 \cdot x}}
+$$
+
+###Question 4b)
+```{r}
+null_model <- glm(cbind(Dead, Total - Dead) ~ 1, data = data, family = binomial)
+lrt_result <- anova(null_model, model, test = "LRT")
+print(lrt_result)
+
+```
+The p-value associated with the chi-square statistic is less than `2.2e-16`, which is significantly lower than the alpha level of 0.05. This highly significant result means to reject the null hypothesis that the dose level has no effect on the probability of moth death. The change in deviance from the null model to the full model is 69.257, which is substantial and indicates that the dose level is an important predictor in the model.
+
+###Question 4c)
+```{r}
+beta_0 <- -2.8186
+beta_1 <- 1.2589
+x <- 3
+log_odds <- beta_0 + beta_1 * x
+probability <- 1 / (1 + exp(-log_odds))
+probability
+
+
+```
+###Question 4d)
+```{r}
+beta_0 <- -2.8186
+beta_1 <- 1.2589
+EL0_75 <- (log(3) - beta_0) / beta_1
+EL0_75
+```
+
+###Question 4e)
+```{r}
+std_pearson_res <- rstandard(model)
+print(std_pearson_res)
+
+```
+###Question 4f)
+```{r}
+pearson_chi_sq_stat <- sum(std_pearson_res^2)
+
+df <- length(std_pearson_res) - length(coef(model))
+
+p_value <- pchisq(pearson_chi_sq_stat, df, lower.tail = FALSE)
+
+list(chi_sq_stat = pearson_chi_sq_stat, p_value = p_value)
+
+
+```
+The Pearson chi-squared stat for goodness of fit test is ~2.62745, with p-val of 0.6227993. Since the p-val is > than 0.05, we do NOT reject the null hypothesis
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

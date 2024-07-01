@@ -1,0 +1,218 @@
+---
+title: "stac58 a1"
+output: pdf_document
+date: '2023-02-09'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+kl <- function(mu1, s1, mu2, s2)
+s=s2/s1
+sum=mu1-mu2
+{
+ (log(s) + (s1^2 + sum^2)/(2*s2^2) - 0.5)
+}
+mu <- seq(-3, 3, by = 0.2)
+
+sigma <- seq(0.2, 3, by = 0.2)
+
+b1 <- outer(mu, sigma, Vectorize(function(mu, sigma)
+{
+ kl(mu, sigma, 0, 1)}))
+b2 <- outer(mu, sigma, Vectorize(function
+{kl(0, 1, mu, sigma)}))
+
+
+contour(mu, sigma, b1, levels = seq(0, 1, by = 0.2), xlab= expression(mu), ylab= expression(sigma), main = "b1")
+
+contour(mu, sigma, b2, levels = seq(0, 1, by = 0.2), xlab= expression(mu), ylab= expression(sigma), main = "b2")
+
+
+
+
+t <- theta^4
+h <- function(theta)
+{
+ return((log(t) - 1 + ((theta - 2)^2 / theta^2)))
+}
+plot(h, from = 0, to = 4)
+
+res <- optimize(h, interval = c(0.25, 4))
+
+res$min
+
+h2 <- function(theta)
+{
+ return((log(1 / t) - 1 + ((2 - theta)^2 / theta^2)))
+}
+plot(h2, from = 0, to = 4)
+
+res2 <- optimize(h2, interval = c(0.25, 4))
+
+res2$min
+
+
+
+
+
+# Define the loss function
+L <- function(a, theta, z) {
+  if (theta == "theta1") {
+    p_lose <- c(0.8, 0.4, 0.2)[z+2]
+    if (a == "a1") {
+      p_win <- c(0.2, 0.6, 0.5)[z+2]
+    } else {
+      p_win <- c(0.35, 0.6, 0.5)[z+2]
+    }
+  } else {
+    p_lose <- c(0.6, 0.5, 0.3)[z+2]
+    if (a == "a1") {
+      p_win <- c(0.75, 0.35, 0.35)[z+2]
+    } else {
+      p_win <- c(0.6, 0.35, 0.35)[z+2]
+    }
+  }
+  return(p_lose)
+}
+
+# Define the pure decision rules
+delta <- function(z, a) {
+  return(list(z = z, a = a))
+}
+decisions <- list(delta(-1, "a1"), delta(-1, "a2"), delta(0, "a1"), delta(0, "a2"),
+                  delta(1, "a1"), delta(1, "a2"), delta(-1, "a1"), delta(1, "a2"))
+
+# Compute the risk functions
+risks <- sapply(decisions, function(d) {
+  p_win_theta1 <- sum(sapply(c("theta1", "theta2"), function(theta) {
+    L(d$a, theta, d$z) * ifelse(theta == "theta1", c(0.2, 0.35, 0.45)[d$z+2], c(0.55, 0.25, 0.2)[d$z+2])
+  }))
+  p_win_theta2 <- sum(sapply(c("theta1", "theta2"), function(theta) {
+    L(d$a, theta, d$z) * ifelse(theta == "theta1", c(0.8, 0.4, 0.2)[d$z+2], c(0.6, 0.5, 0.3)[d$z+2])
+  }))
+  return(c(p_win_theta1, p_win_theta2))
+})
+
+# Plot the risk functions
+plot(risks[1,], risks[2,], pch = 16, xlim = c(0,1), ylim = c(0,1), xlab = "Risk under theta 1",
+     ylab = "Risk under theta 2", main = "Risk functions for pure decision rules")
+abline(a = 0, b = 1, col = "gray")
+text(risks[1,], risks[2,], labels = paste0("δ", 1:8))
+
+library(grDevices)
+library(graphics)
+
+# Define the points from part (b)
+p <- matrix(c(R1, R2), ncol = 2, byrow = TRUE)
+
+# Find the convex hull
+hull <- convhulln(p)
+
+# Plot the points and the convex hull
+plot(R1, R2, xlab = "R(δ,θ1)", ylab = "R(δ,θ2)", main = "Risk Functions and Convex Hull")
+polygon(p[hull$vertices,], border = "blue", col = "lightblue")
+
+
+
+library(ggplot2)
+library(dplyr)
+library(geometry)
+
+# Define the risk functions
+R1 <- c(0.75, 0.4, 0.4, 0.4, 0.5, 0.5, 0.7, 0.8)
+R2 <- c(0.25, 0.6, 0.6, 0.6, 0.5, 0.5, 0.3, 0.2)
+df <- data.frame(R1, R2)
+
+# Compute the convex hull
+hull <- df %>% chullxy()
+
+# Plot the risk functions and the convex hull
+ggplot(df, aes(R1, R2)) +
+  geom_point() +
+  geom_path(data = hull, color = "red") +
+  labs(x = "R(δ, θ1)", y = "R(δ, θ2)", title = "Convex Hull of Risk Functions")
+  
+  
+  library(ggplot2)
+library(dplyr)
+
+# define the payoff matrix
+A <- matrix(c(1, -1, -1, 1), nrow = 2, ncol = 2, byrow = TRUE)
+
+# define the pure decision rules
+delta1 <- c(1, 0)
+delta2 <- c(0, 1)
+delta3 <- c(1, 1)
+delta4 <- c(0.5, 0.5)
+delta5 <- c(0, 0)
+delta6 <- c(0, 0.5)
+delta7 <- c(0.5, 0)
+delta8 <- c(0.25, 0.75)
+
+# compute the risk functions
+risk1 <- apply(A, 2, function(x) sum(delta1 * x))
+risk2 <- apply(A, 2, function(x) sum(delta2 * x))
+risk3 <- apply(A, 2, function(x) sum(delta3 * x))
+risk4 <- apply(A, 2, function(x) sum(delta4 * x))
+risk5 <- apply(A, 2, function(x) sum(delta5 * x))
+risk6 <- apply(A, 2, function(x) sum(delta6 * x))
+risk7 <- apply(A, 2, function(x) sum(delta7 * x))
+risk8 <- apply(A, 2, function(x) sum(delta8 * x))
+
+# plot the risk functions
+data <- data.frame(theta1 = c(risk1[1], risk2[1], risk3[1], risk4[1], risk5[1], risk6[1], risk7[1], risk8[1]),
+                   theta2 = c(risk1[2], risk2[2], risk3[2], risk4[2], risk5[2], risk6[2], risk7[2], risk8[2]),
+                   delta = factor(rep(1:8, each = 2)),
+                   theta = factor(rep(c("theta1", "theta2"), times = 8)),
+                   label = c("delta1", "delta1", "delta2", "delta2", "delta3", "delta3", "delta4", "delta4",
+                             "delta5", "delta5", "delta6", "delta6", "delta7", "delta7", "delta8", "delta8"))
+
+ggplot(data, aes(x = theta1, y = theta2)) +
+  geom_point(aes(color = delta)) +
+  geom_line(aes(group = delta, color = delta), size = 1) +
+  facet_grid(rows = vars(theta)) +
+  labs(x = expression(R(delta, theta[1])),
+       y = expression(R(delta, theta[2])),
+       color = "Delta") +
+  scale_color_discrete(labels = c("Delta1", "Delta2", "Delta3", "Delta4",
+                                  "Delta5", "Delta6", "Delta7", "Delta8")) +
+  theme_bw()
+
+library(plotrix)
+
+# Define the points representing the risk functions of the pure decision rules
+risk_pts <- data.frame(
+  x = c(1/2, 1/2, 0, 0, 1, 1, 0, 1/3),
+  y = c(1/2, 0, 0, 1/2, 0, 1, 1, 2/3)
+)
+
+# Compute the convex hull of the risk points
+hull_pts <- chull(risk_pts)
+
+# Plot the risk functions of the pure decision rules and the convex hull
+plot(risk_pts, xlim = c(0, 1), ylim = c(0, 1), pch = 19, xlab = expression(R(delta[1], theta)), ylab = expression(R(delta[2], theta)))
+polygon(risk_pts[hull_pts,], col = "gray80", border = NA)
+points(risk_pts, pch = 19, col = "black")

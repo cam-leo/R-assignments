@@ -1,0 +1,337 @@
+---
+title: "STAD57 - Assignment 1"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  html_notebook: default
+urlcolor: blue
+editor_options:
+  chunk_output_type: inline
+---
+install.packages("ggplot2")
+install.packages("ggfortify")
+install.packages("seasonal")
+install.packages("forecast")
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, fig.width=7, fig.height=5)
+```
+
+-----------------------------------------------
+
+##### Submission instructions:  
+- Your answers to the Theory part can be handwritten (PDF scan/photo is OK).  
+- Your answers to the Practice part should be in the form of an [RMarkdown](https://rmarkdown.rstudio.com/lesson-1.html) report (HTML or PDF), combining code, output, and commentary.
+- Submit all files to A1 on Quercus by the assignment's deadline.  
+
+----------------------------------------------
+install "installr"
+### Theory 
+
+
+1. In this course we work with (weakly) stationary time series. This class of models is closed under linear transformations, i.e. whenever you take a (non-exploding) linear combination of stationary series, you always end up with a stationary series. For this question you have to prove this result. Consider two *independent* zero-mean stationary series, $\{X_t\}$ and $\{Y_t\}$, with autocovariance functions (ACVFs) $\gamma_X(h)$ and $\gamma_Y(h)$, respectively.
+
+(a) [4 marks] Find the ACVF of the linear combination $Z_t = a X_t + b Y_t, \;  a,b\in \mathbb{R}$ in terms of the ACVFs of $\{X_t\},\{Y_t\}$, and show that it is stationary (i.e. only depends on $h$).
+
+(b) [6 marks] Find the ACVF of the linear filter $V_t = \sum_{j=0}^{p} a_j X_{t-j}, \;  a_j\in \mathbb{R}$ in terms of the ACVF of $\{X_t\}$, and show that it is stationary.
+
+2. [10 marks] Consider the random walk (RW) series $X_t = X_{t-1} + W_t,\; \forall  t \ge 1$, where $X_0=0$ and $W_t \sim WN (0,1)$. Although the series is *not stationary*, assume we treat it as such and calculate the *sample* ACVF $\hat{\gamma}(h)$, based on a sample of size $n$, as:  
+$$\hat{\gamma}(h) = \frac{1}{n} \sum_{t=1}^{n-h} ( X_{t+h} X_{t} ) , \;\;  \forall h=0,1,\ldots,n-1$$
+Show that the *expected value* of the sample auto-covariances are given by
+$$ \mathbb{E} [ \hat{\gamma}(h) ] = \frac{(n-h)(n-h+1)}{2n} $$
+(*Hint*: the ACVF of $X$ is $\gamma(s,t) = \min (s,t),\; \forall s,t \ge 1$, and the arithmetic series formula is $\sum_{i=1}^{n} i = n(n+1)/2$.)  
+(*Note*: this illustrates the behavior of the sample ACF of a RW series: it is in fact a quadratic in $h$, but it behaves very close to linear for the small values of $h$ that appear in the ACF plot.)
+
+
+-------------------------------
+
+### Practice 
+
+1. Time series models are used in Finance to describe asset price movements. For this question you will work with Canadian stock prices, examining the [Efficient Market](https://en.wikipedia.org/wiki/Efficient-market_hypothesis)/[Random Walk](https://en.wikipedia.org/wiki/Random_walk_hypothesis) hypothesis. 
+a. [2 marks] Using your student ID# as a seed, pick a random number from 1-60 and download the corresponding stock from the table in the Appendix. **Make sure to  use the right data, otherwise you will lose marks.** Use the [quantmod](http://www.quantmod.com/examples/intro/) library to  download and plot the adjusted closing price  data over 2010-2020, as in the example below. Note that you need to use the appropriate stock symbol for your company, which should end in ".TO"; you can find that by searching for its ticker at [Yahoo! Finance](https://ca.finance.yahoo.com/).
+
+```{r}
+set.seed(1006523736) # set random see to your student ID
+sample(1:60, size =23) # pick a random number from 1-60
+install.packages("quantmod")
+library(quantmod)
+getSymbols("EMA.TO", from = "2010/12/31", to = "2020/12/31")
+plot(EMA.TO$EMA.TO.Adjusted)
+```
+
+b. [2 marks] Calculate and plot the [logarithmic returns](https://en.wikipedia.org/wiki/Rate_of_return#Logarithmic_or_continuously_compounded_return) with the function ```quantmod::dailyReturn()``` with argument ```type = "log"```. Verify that you get the same values by first order differencing of the logarithm of the price series, i.e. $R_t = \nabla \ln( P_t ) = \ln(P_t) - \ln(P_{t-1}) = \ln(P_t/P_{t-1})$, where $R_t$ is the log-return and $P_t$ is the adjusted closing price.
+
+```{r}
+plot(quantmod::dailyReturn(EMA.TO), type="l")
+log_returns <- diff(log(EMA.TO))
+adjusted_closing_prices <- Cl(EMA.TO)  # Extract adjusted closing prices
+R_t <- diff(adjusted_closing_prices) / lag(adjusted_closing_prices)
+identical(log_returns, R_t)
+
+```
+
+c. [2 marks] The Random Walk hypothesis assumes that log-prices follow a random-walk with drift, i.e. $\ln(P_t) = \mu + \ln(P_{t-1}) + W_t$, where $W_t$ is a White Noise. This implies that the returns $R_t = \mu + W_t$ are **uncorrelated**. Plot the ACF of the returns for your stock and comment on whether they look uncorrelated.
+```{r}
+library(ggplot2)
+returns <- Delt(Cl(EMA.TO), type = "arithmetic")
+library(zoo)
+library(ggfortify)
+R_adj <- na.approx(R_t)
+acfp<- acf(R_adj, main = "Test")
+# returns <- na.approx(returns)
+# acf_plot <- acf(returns, main = "ACF of Stock Returns")
+acf_plot_actual<-autoplot(acfp, main="Adjusted for Lag" )
+acf_plot_actual
+
+```
+d. [4 marks] Consider what would happen if the returns were predictable, let's say following an MA(1) model $R_t = \mu + V_t + .5 V_{t-1}$, where $V_t \sim ^{iid} N(0,\sigma_v^2)$. First, estimate the values of $\mu$ and $\sigma_v^2$ based on the mean and variance of your stock's daily returns, by setting $\mu = \bar{R}$ and $\sigma_v^2 = S_R^2 / 1.25$, where $\bar{R},S_R^2$ are the sample mean and variance of the returns. 
+(If you are wondering about the division by 1.25, remember that for the MA(1) model $X_t = W_t + \theta W_{t-1}$ we have $V[X_t]=(1+\theta^2) \sigma^2_w$.)
+
+```{r}
+mu <- mean(R_adj)
+S <- var(R_adj)
+sigma = S^2 / 1.25
+
+
+```
+
+e. [3 marks] Simulate 2500 returns from the model in the previous part and plot their ACF; comment on the type of autocorrelation you observe.
+```{r}
+n<-2500
+R_adj <- numeric(n)
+for (t in 2:n) {
+  R_adj[t] <- mu + rnorm(1, mean = 0, sd = sqrt(sigma)) + 0.5 * rnorm(1, mean = 0, sd = sqrt(sigma))
+}
+acf_plot2 <- acf(R_adj, main = "ACF of Simulated MA(1) Returns")
+
+```
+f. [2 marks] Use the returns you simulated in the previous part to evaluate the following simple trading strategy: 
+
++ if today's return is +ve, then buy (long) the stock until tomorrow 
++ if today's return is -ve, then sell (short) the stock until tomorrow 
+
+Assuming no transaction costs, the aggregate return of this strategy is the sum of returns over the days you bought the stock, minus the sum of the returns over the days you sold the stock (i.e. long returns are added, and short returns are subtracted). Calculate the aggregate return of the strategy over the 2500 simulated days, and compare it to the aggregate return of a buy-and-hold strategy (i.e. sum of all returns). What do you observe?
+
+```{r}
+
+n <- length(R_adj)
+pos <- numeric(n)  
+strategy_returns <- numeric(n)  
+
+
+for (i in 2:n) {
+  if (R_adj[i - 1] > 0) {
+    pos[i] <- 1 
+  } else if (R_adj[i - 1] < 0) {
+    pos[i] <- -1 
+  } else {
+    pos[i] <- 0  
+  }
+  
+  strategy_returns[i] <- pos[i] * R_adj[i]  
+}
+
+
+strategy_return_aggregate <- sum(strategy_returns)
+buy_and_hold_return_aggregate <- sum(R_adj)
+
+
+strategy_return_aggregate
+buy_and_hold_return_aggregate
+
+```
+<!-- The results you provided, strategy_return_aggregate = 0.6798767 for the trading strategy and buy_and_hold_return_aggregate = 0.6952371 for the buy-and-hold strategy, represent the aggregate returns achieved by these two different investment approaches over the 2500 simulated days. -->
+
+<!-- Here's how to interpret these results: -->
+
+<!-- Trading Strategy Return (0.6798767): -->
+
+<!-- The strategy_return_aggregate value represents the cumulative return achieved by the trading strategy you implemented. This strategy involved buying (going long) when daily returns were positive and selling (going short) when daily returns were negative. -->
+<!-- In your simulation, this trading strategy resulted in a cumulative return of approximately 0.6799. This means that if you had implemented this strategy and followed its buy/sell signals over the 2500 simulated days, your portfolio would have grown by approximately 67.99% in terms of returns. -->
+<!-- Buy-and-Hold Strategy Return (0.6952371): -->
+
+<!-- The buy_and_hold_return_aggregate value represents the cumulative return achieved by a buy-and-hold strategy, where you simply held the stock without trading over the entire 2500-day period. -->
+<!-- In your simulation, this buy-and-hold strategy resulted in a cumulative return of approximately 0.6952. This means that if you had purchased the stock at the beginning of the simulation and held it until the end, your portfolio would have grown by approximately 69.52% in terms of returns. -->
+<!-- Interpretation: -->
+
+<!-- The buy-and-hold strategy appears to have slightly outperformed the trading strategy in terms of cumulative returns in your simulation. -->
+<!-- The difference in returns between the two strategies is relatively small (about 1.53% higher for buy-and-hold), indicating that the trading strategy did not significantly outperform the simple buy-and-hold approach in this particular simulation. -->
+<!-- It's important to note that these results are specific to the simulated data and the trading strategy you implemented. In real-world scenarios, various factors, including transaction costs, market conditions, and the choice of trading strategy parameters, can significantly impact the performance of trading strategies. Therefore, it's crucial to conduct rigorous testing and consider risk management aspects when evaluating and implementing trading strategies in actual financial markets. -->
+
+2. For this question you will work with [Statistics Canada's open data](https://www150.statcan.gc.ca/n1/en/type/data). The data are organized by topic in tables^[see also this [brief tutorial](https://www.statcan.gc.ca/eng/sc/video/howto)], and we will focus on monthly [Labour Force Characteristics](https://www150.statcan.gc.ca/t1/tbl1/en/cv.action?pid=1410028701), and in particular employment numbers, both as unadjusted (raw) and [seasonally adjusted](https://www150.statcan.gc.ca/n1/dai-quo/btd-add/btd-add-eng.htm) series. You can access such data directly within R with the [cansim](https://mountainmath.github.io/cansim/index.html) library, using "vectors" to download individual series. 
+
+You will be working with employment numbers from a single geographic location. To find your  location generate a random number from 1-11 with your ID# as the seed (similar to previous part), and use the corresponding series from the following table:
+
+|  #|GEO                       |Seasonally adjusted |Unadjusted |
+|--:|:-------------------------|:-------------------|:----------|
+|  1|Canada                    |v2062811            |v2064890   |
+|  2|Newfoundland and Labrador |v2063000            |v2065079   |
+|  3|Prince Edward Island      |v2063189            |v2065268   |
+|  4|Nova Scotia               |v2063378            |v2065457   |
+|  5|New Brunswick             |v2063567            |v2065646   |
+|  6|Quebec                    |v2063756            |v2065835   |
+|  7|Ontario                   |v2063945            |v2066024   |
+|  8|Manitoba                  |v2064134            |v2066213   |
+|  9|Saskatchewan              |v2064323            |v2066402   |
+| 10|Alberta                   |v2064512            |v2066591   |
+| 11|British Columbia          |v2064701            |v2066780   |
+```{r}
+set.seed(1006523736)
+sample(1:11, size =1)
+```
+Below is sample code for downloading the unadjusted employment numbers for Canada (vector code v2064890):
+
+```{r, message = F}
+library(cansim)
+library(tidyverse)
+# unadjusted series for Canada
+
+Xua = get_cansim_vector( "v2066024", start_time = "2000-01-01", end_time = "2019-12-01") %>% 
+  pull(VALUE) %>% ts( start = c(2000,1), frequency = 12)
+plot(Xua) 
+```
+
+
+
+
+1. [3 marks] Plot the unadjusted series and its ACF, and comment on the following characteristics: trend, seasonality, stationarity.
+```{r}
+ACF <- acf(Xua)
+```
+<!-- We can see over time there is a downward trend albeit not too strong. We can see a slight spike around 0.8-1.0 which is evidence of a presence of seasonality. We can also see overall there is a constant variance which indicates a stationarity time series.  -->
+
+
+2. [5 marks] Perform a [classical *multiplicative* decomposition](https://otexts.com/fpp2/classical-decomposition.html) of the unadjusted series ($X_{ua}$) into trend ($T$), seasonal ($S$), and remainder ($R$) components (i.e. $X_{ua} = T\times S \times R$):
+
+a.  First, apply a *12-point MA* to the raw (unadjusted) series to get an estimate of the trend. 
+b.  Then, use the *detrended* data to estimate seasonality: find the seasonal pattern by calculating sample means for each month, and then center the pattern at 1 (i.e divide the pattern by its mean, so that its new mean is 1).
+c.  Finally, calculate the *remainder* component by removing both trend and seasonality from the raw series. Create a time-series plot of all components like the one below.  
+(*Hint*: you results should perfectly match those of the ```decompose``` function, which uses the above process)
+```{r}
+library(tidyverse)
+trend_estimate <- rollapply(Xua, width = 2, FUN = mean, align = "right", fill = NA)
+
+# Step 2: Estimate seasonality by finding the seasonal pattern and centering it at 1
+seasonal_pattern <- Xua / trend_estimate
+seasonal_pattern_mean <- colMeans(matrix(seasonal_pattern, ncol = 12, byrow = FALSE))
+seasonal_pattern_centered <- seasonal_pattern / seasonal_pattern_mean
+
+remainder_estimate <- Xua / (trend_estimate * seasonal_pattern_centered)
+XuaFinal <- trend_estimate * remainder_estimate
+# Create a time-series plot of all components
+par(mfrow = c(2, 1))  # Create a 3-row plot layout
+
+plot(trend_estimate, main = "Trend Component", ylab = "Value", type="l")
+plot(seasonal_pattern_centered, main = "Seasonal Component (Centered)", ylab = "Value", type="l")
+plot(remainder_estimate, main = "Remainder Component", ylab = "Value", type="l")
+plot(XuaFinal, main = "XuaFinal", ylab = "Value", type="l")
+# Reset plot layout
+par(mfrow = c(1, 1))
+
+```
+
+
+3. [2 marks] Statistics Canada (StatCan) does their [own seasonal adjustment](https://www150.statcan.gc.ca/n1/pub/12-539-x/2009001/seasonal-saisonnal-eng.htm) using a more sophisticated method (namely, [X-12-ARIMA](https://en.wikipedia.org/wiki/X-12-ARIMA)). Download the corresponding *seasonally adjusted* series and plot together with your own seasonally adjusted data ($X_{sa} = X_{ua} / S = T \times R$) from the previous part. The two versions should be close, but not identical. Report the mean square error ([MSE](https://en.wikipedia.org/wiki/Mean_squared_error)) between the two versions (StaCan's and yours) of seasonally adjusted data. 
+
+```{r}
+Xua2 = get_cansim_vector( "v2063945", start_time = "2000-01-01", end_time = "2019-12-01") %>% 
+  pull(VALUE) %>% ts( start = c(2000,1), frequency = 12)
+plot(Xua2) 
+
+mse <- mean((XuaFinal - Xua2)^2)
+
+# Plot both versions of seasonally adjusted data
+par(mfrow = c(2, 1))  # Create a 2-row plot layout
+
+plot(XuaFinal, main = "Your Seasonally Adjusted Data", ylab = "Value", type = "l")
+plot(Xua2, main = "StatCan's Seasonally Adjusted Data", ylab = "Value", type = "l")
+
+# Reset plot layout
+par(mfrow = c(1, 1))
+
+# Print the Mean Square Error (MSE)
+cat("Mean Square Error (MSE) between the two versions of seasonally adjusted data:", mse, "\n")
+```
+
+
+4. [5 marks] The library ```seasonal``` contains R functions for performing seasonal adjustments/decompositions using various methods. Use the following two methods described in [FPP](https://otexts.com/fpp2/decomposition.html) for performing seasonal adjustments (you don't need to know their details): 
+a. [X11](https://otexts.com/fpp2/x11.html)  
+b. [SEATS](https://otexts.com/fpp2/seats.html)  
+Create seasonaly adjusted versions of your raw series based on each method, and plot them together with StaCan's version. Note that the methods (X11 & SEATS) are *multiplicative* by default, and you must use the ```forecast``` library function ```seasadj```, ```seasonal```, ```trendcycle```, and ```remainder``` to extract the various components. Which method gives a seasonal adjustment that is closest to StaCan's, based on MSE?  
+```{r}
+library(seasonal)
+library(forecast)
+
+
+
+
+
+
+```
+
+
+### Appendix
+
+
+| #  | SYMBOL   | NAME                                      |
+|----|----------|-------------------------------------------|
+| 1  | ABX-T    | Barrick   Gold Corp                       |
+| 2  | AEM-T    | Agnico   Eagle Mines Ltd                  |
+| 3  | AQN-T    | Algonquin   Power and Utilities Corp      |
+| 4  | ATD-B-T  | Alimentation   Couche-Tard Inc Cl B Sv    |
+| 5  | BAM-A-T  | Brookfield   Asset Management Inc Cl A Lv |
+| 6  | BCE-T    | BCE Inc                                   |
+| 7  | BHC-T    | Bausch   Health Companies Inc             |
+| 8  | BIP-UN-T | Brookfield   Infra Partners LP Units      |
+| 9  | BMO-T    | Bank of   Montreal                        |
+| 10 | BNS-T    | Bank of   Nova Scotia                     |
+| 11 | CAE-T    | Cae Inc                                   |
+| 12 | CAR-UN-T | CDN   Apartment Un                        |
+| 13 | CCL-B-T  | Ccl   Industries Inc Cl B NV              |
+| 14 | CCO-T    | Cameco   Corp                             |
+| 15 | CM-T     | Canadian   Imperial Bank of Commerce      |
+| 16 | CNQ-T    | CDN   Natural Res                         |
+| 17 | CNR-T    | Canadian   National Railway Co.           |
+| 18 | CP-T     | Canadian   Pacific Railway Ltd            |
+| 19 | CSU-T    | Constellation   Software Inc              |
+| 20 | CTC-A-T  | Canadian   Tire Corp Cl A NV              |
+| 21 | CVE-T    | Cenovus   Energy Inc                      |
+| 22 | DOL-T    | Dollarama   Inc                           |
+| 23 | EMA-T    | Emera   Incorporated                      |
+| 24 | ENB-T    | Enbridge   Inc                            |
+| 25 | FM-T     | First   Quantum Minerals Ltd              |
+| 26 | FNV-T    | Franco-Nevada   Corp                      |
+| 27 | FTS-T    | Fortis Inc                                |
+| 28 | GIB-A-T  | CGI Group   Inc Cl A Sv                   |
+| 29 | GIL-T    | Gildan   Activewear Inc                   |
+| 30 | IMO-T    | Imperial   Oil                            |
+| 31 | IPL-T    | Inter   Pipeline Ltd                      |
+| 32 | K-T      | Kinross   Gold Corp                       |
+| 33 | KL-T     | Kirkland   Lake Gold Ltd                  |
+| 34 | L-T      | Loblaw CO                                 |
+| 35 | MFC-T    | Manulife   Fin                            |
+| 36 | MG-T     | Magna   International Inc                 |
+| 37 | MRU-T    | Metro Inc                                 |
+| 38 | NA-T     | National   Bank of Canada                 |
+| 39 | NTR-T    | Nutrien   Ltd                             |
+| 40 | OTEX-T   | Open Text   Corp                          |
+| 41 | POW-T    | Power Corp   of Canada Sv                 |
+| 42 | PPL-T    | Pembina   Pipeline Corp                   |
+| 43 | QSR-T    | Restaurant   Brands International Inc     |
+| 44 | RCI-B-T  | Rogers   Communications Inc Cl B NV       |
+| 45 | RY-T     | Royal Bank   of Canada                    |
+| 46 | SAP-T    | Saputo Inc                                |
+| 47 | SHOP-T   | Shopify   Inc                             |
+| 48 | SJR-B-T  | Shaw   Communications Inc Cl B NV         |
+| 49 | SLF-T    | Sun Life   Financial Inc                  |
+| 50 | SNC-T    | Snc-Lavalin   Sv                          |
+| 51 | SU-T     | Suncor   Energy Inc                       |
+| 52 | T-T      | Telus Corp                                |
+| 53 | TD-T     | Toronto-Dominion   Bank                   |
+| 54 | TECK-B-T | Teck   Resources Ltd Cl B                 |
+| 55 | TRI-T    | Thomson   Reuters Corp                    |
+| 56 | TRP-T    | Tc Energy   Corp                          |
+| 57 | WCN-T    | Waste   Connections Inc                   |
+| 58 | WEED-T   | Canopy   Growth Corp                      |
+| 59 | WN-T     | Weston   George                           |
+| 60 | WPM-T    | Wheaton   Precious Metals Corp            |

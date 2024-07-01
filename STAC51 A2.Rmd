@@ -1,0 +1,156 @@
+---
+title: "STAC51 A2"
+output: pdf_document
+date: "2024-03-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+install.packages("binom")
+
+
+
+### Q2a)
+```{r}
+set.seed(2024)
+n11 <- rbinom(1, 10, 0.4)
+n21 <- rbinom(1, 10, 0.4)
+print(n11)
+print(n21)
+
+```
+
+### Q2b)
+```{r}
+n1plus <- 10
+n2plus <- 10
+ntable <- array(data = c(n11, n21, n1plus - n11, n2plus - n21), dim = c(2,2))
+print(ntable)
+```
+
+### Q2c)
+```{r}
+fisher_result <- fisher.test(ntable)
+print(fisher_result)
+```
+Our p-value is 0.3698. Since this is greater than 0.05 for 5 percent level of signif, we fail to reject the null hypothesis.
+
+
+### Q2d)
+```{r}
+set.seed(2024)
+p_val <- replicate(10000, {
+n11 <- rbinom(1, 10, 0.4) 
+n21 <- rbinom(1, 10, 0.4)
+ntable <- array(data = c(n11, n21, n1plus - n11, n2plus - n21), dim = c(2,2))
+fisher.test(ntable)$p.val})
+print(head(p_val, 5)) 
+rej <- sum(p_val < 0.05)
+print(rej)
+
+```
+We rejected the null hypothesis 142 times out of 10000, which is roughly 1.42%. This was for the 5 percent level of significance. Our rate of 1.42% is lower than the expected rate of 5%.  
+
+
+### Q2e)
+```{r}
+set.seed(2024)
+n1plus <- 100
+n2plus <- 100
+p_vals <- replicate(10000, {
+n11 <- rbinom(1, 100, 0.4)
+n21 <- rbinom(1, 100, 0.4)
+ntable <- array(data = c(n11, n21, n1plus - n11, n2plus - n21), dim = c(2,2))
+fisher.test(ntable)$p.value
+})
+print(head(p_vals, 5)) # Print the first five p-values
+rej <- sum(p_vals < 0.05)
+print(rej)
+
+```
+We rejected the null hypothesis 358 times out of 10000. This is roughly 3.58%. This was for the level of signif of 5%. This was closer to our expected rejection rate of 5% as it was higher than the one from d) but still lower than expected.
+
+
+### Q3j)
+```{r}
+cases_exposed <- 3
+cases_not_exposed <- 1
+controls_exposed <- 1
+controls_not_exposed <- 3
+
+n_cases <- cases_exposed + cases_not_exposed
+n_controls <- controls_exposed + controls_not_exposed
+eta_null <- 0.1
+
+binom_prob <- function(x, n, p) {
+  choose(n, x) * p^x * (1 - p)^(n - x)
+}
+
+likelihood_null <- binom_prob(cases_exposed, n_cases, exp(eta_null) / (1 + exp(eta_null))) * 
+                   binom_prob(controls_exposed, n_controls, exp(eta_null) / (1 + exp(eta_null)))
+p_value <- 0
+for (x in 0:n_cases) {
+  for (y in 0:n_controls) {
+    if (x + y == cases_exposed + controls_exposed) {
+      likelihood <- binom_prob(x, n_cases, exp(eta_null) / (1 + exp(eta_null))) * 
+                    binom_prob(y, n_controls, exp(eta_null) / (1 + exp(eta_null)))
+      
+      
+      if (likelihood >= likelihood_null) {
+        p_value <- p_value + likelihood
+      }
+    }
+  }
+}
+p_value
+```
+Our p-value here is 0.26298 which is greater than our null hypothesis value of 0.1, hence we reject the null hypothesis here.
+
+### Q3k)
+```{r}
+cases_exposed <- 3
+cases_not_exposed <- 1
+controls_exposed <- 1
+controls_not_exposed <- 3
+
+n_cases <- cases_exposed + cases_not_exposed
+n_controls <- controls_exposed + controls_not_exposed
+
+conditional_likelihood <- function(eta, n_cases, n_controls, cases_exposed) {
+  p <- exp(eta) / (1 + exp(eta))
+  likelihood_cases <- dbinom(cases_exposed, n_cases, p)
+  likelihood_controls <- dbinom(n_controls - cases_exposed, n_controls, p)
+  return(likelihood_cases * likelihood_controls)
+}
+etas <- seq(-3, 3, 0.01)
+likelihoods <- sapply(etas, conditional_likelihood, n_cases, n_controls, cases_exposed)
+max_likelihood_eta <- etas[which.max(likelihoods)]
+max_likelihood_theta <- exp(max_likelihood_eta)
+
+plot(etas, likelihoods, type = "l", xlab = "eta", ylab = "Likelihood",
+     main = "Conditional Likelihood of eta")
+points(max_likelihood_eta, max(likelihoods), col = "red", pch = 20)
+max_likelihood_theta
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

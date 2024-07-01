@@ -1,0 +1,155 @@
+---
+title: "STAD37 A1"
+output: pdf_document
+date: '2022-09-30'
+---
+library (MASS)
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+\\\Question 2
+
+```{r}
+A <- matrix(c(20,9,15,16,16,5,5,6,14),3,3,byrow=FALSE)
+B <- matrix(c(7,19,15,15,20,13,8,15,14),3,3,byrow=TRUE)
+C <- matrix(c(1,11,16,6,12,9,20,20,15),3,3,byrow=TRUE)
+
+ABC <- (A%*%B)%*%C
+BCA <- (B%*%C)%*%A
+CAB <- (C%*%A)%*%B
+ACB <- (A%*%C)%*%B
+print(ABC)
+print(BCA)
+print(CAB)
+print(ACB)
+trABC <- sum(diag(ABC))
+trBCA <- sum(diag(BCA))
+trCAB <- sum(diag(CAB))
+trACB <- sum(diag(ACB))
+print(trABC)
+print(trBCA)
+print(trCAB)
+print(trACB)
+```
+
+#Question 3
+
+```{r}
+#A)
+data = read.table("p1_4.txt", header=FALSE)
+datam <- as.matrix(data)
+xbar <- as.matrix(apply(data,2,mean))
+print(xbar)
+n <- nrow(data)
+cov(data)
+Sn <- ((n-1)/n)*cov(data)
+print(Sn)
+#B)
+head(data)
+plot(data)
+R <- cor(data)
+print(R)
+#C)
+I <- diag(10)
+one <- matrix(rep(c(1,1,1,1,1,1,1,1,1,1),each=10),10,10,byrow=TRUE)
+C <- I - ((1/n)*one)
+print(C)
+Xc <- C%*%datam
+print(Xc)
+
+
+```
+
+#Question 6
+
+```{r}
+A <- matrix(c(404.6,282.4,118.3,109.4,282.4,284.4,-13.6,45.4,118.3,-13.6,599.7,488.3,109.4,45.4,488.3,447.4),4,4,byrow=TRUE)
+ev <- eigen(A)
+P <- ev$vectors #This is P
+Lambda <- diag(ev$values)
+print(Lambda)#this is the ^ vector
+print(P%*%Lambda%*%t(P)) #This is A
+
+rootlambda <- diag(sqrt(ev$values))
+rootA <- P%*%rootlambda%*%t(P) #This is A^0.5
+print(rootA)
+```
+
+#Question 7b
+```{r}
+A <- matrix(c(-6,2,-2,-3,3,-1,5,2,-3,1,3,-1),3,4,byrow=TRUE)
+GI <- ginv(A) #This is ^ Matrix
+print(GI)
+print(A%*%GI%*%A) #This is A*^*A = A
+```
+
+
+#Question 8
+```{r}
+
+#a)
+cov <- matrix(c(4.2, -0.01, -0.08, -0.32, -0.89, -0.01, 3.56, -0.25, 0.3, -1.28, -0.08, -0.25, 2.16, 0.55, 0.07, -0.32, 0.3, 0.55, 2.63, 0.74, -0.89, -1.28, 0.07, 0.74, 2.45), 5,5,byrow=TRUE)
+x2 <- matrix(c(1,1,0))
+x1 <- matrix(c(0))
+y <- matrix(c(x1,x2))
+mu <- matrix(c(0,0,0,0,0))
+
+u <- mu[1]+cov[2]*(1/cov[7])*(y[2]-mu[2])
+print(u)
+
+#b)
+print(sigma12 <- cov[1]-(cov[2]*(1/cov[7])*cov[6]))
+print(sigma22 <- abs(cov[7]))
+print(prod <- sigma12*sigma22)
+print(det(cov))
+
+```
+
+
+#Question 10    
+```{r}
+
+#a)
+data0=read.table("data_chisqplot.txt", header=FALSE)
+data <- data0[,1:2]
+p <- ncol(data)
+n <- nrow(data)
+cols <-c("x1","x2")
+colnames(data) <- cols
+head(data)
+par(mfrow=c(2,4))
+qqnorm(data$x1, main="Normal QQ plot for x1")
+qqnorm(data$x2, main="Normal QQ plot for x2")
+hist(data$x1, main="Histogram for x1")
+hist(data$x2, main="Histogram for x2")
+dsq <- mahalanobis(data, colMeans(data), cov(data))
+print(dsq)
+print(mean(dsq < qchisq(0.5,p))) #About 76% of them are below chisq(0.5)
+
+
+#b)
+plot(qchisq((1:n-1/2)/n, df=p), sort(dsq), xlab = expression(paste(chi[4]^2, "Quantile")), ylab = "Ordered Generalized Squared distances")
+abline (a=0, b=1)
+
+```

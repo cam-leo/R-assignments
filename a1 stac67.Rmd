@@ -1,0 +1,187 @@
+---
+title: "A1 STACX67"
+output: pdf_document
+date: '2022-07-06'
+---
+install.packages("tidyverse")
+library(tidyverse)
+library(MASS)
+tinytex::install_tinytex()
+install.packages("readr")
+library(readr)
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+dir_output <- "D:/STAC67"
+
+
+
+set.seed(123)
+#Question 3
+set.seed(123)
+n=20
+#generates random predictor x from uniform distribution of (0,1)
+x <- runif(20,0,1)
+#generates random error terms e_i from normal distribution of (0,1)
+error <- rnorm(20,0,1)
+#generates response y from formula given in assignment
+y <- 1+(2*x)+error
+#fits simple linear regression
+fit <- lm(y~x)
+#creates new data with x=0.5
+newdata <- data.frame(x=0.5)
+#creates confidence interval at 95%
+CI<-predict(fit, newdata, interval ="confidence", level=0.95)
+
+#true expected value of y given x=0.5
+true <- 1+2*0.5
+percent<-c()
+sim <- function(n_rep, predictor)
+{ 
+  count=0
+  response <- data.frame(matrix(ncol = 2, nrow = n_rep))
+  colnames(response) <- c("lwr", "upr")
+  
+  for(i in 1:n_rep)
+  {
+    error <- rnorm(20, 0, 1)
+    x <- predictor
+    y <- 1+(2*x)+error
+    fit <- lm(y ~ x)
+    CI<-predict(fit, newdata, interval = "confidence", level=0.95)
+    if ((true <= CI[3])&(true >=CI[2]))
+    {
+    count=count+1
+    
+    } 
+}
+
+  print(count/10000)
+   return(response)
+    
+  }
+  
+
+
+out <- sim(n_rep=10000, predictor=x)
+
+i) Question 3A
+ The true value of E(Y|X=0.5) is 1+2*0.5=2
+
+ii) Question 3B
+ The proportion of 95% confidence intervals that contained the true value is roughly ~9500/10000 or 95%, thus we can conclude that the confidence interval is 
+ accurately estimated
+
+iii)Question 3C
+
+
+set.seed(123)
+sim <- function(n_rep, predictor)
+{ 
+  count=0
+  response <- data.frame(matrix(ncol = 2, nrow = n_rep))
+  colnames(response) <- c("lwr", "upr")
+  
+  for(i in 1:n_rep)
+  {
+    error <- (rchisq(n,2)-2)
+    x <- predictor
+    y <- 1+(2*x)+error
+    fit <- lm(y ~ x)
+    CI<-predict(fit, newdata, interval = "confidence", level=0.95)
+    if ((true <= CI[3])&(true >=CI[2]))
+    {
+    count=count+1
+    
+    } 
+}
+
+
+   print(count/10000)
+    return(response)
+  }
+  
+  
+
+out <- sim(n_rep=10000, predictor=x)
+
+Question 3C
+
+1) Based on the datasets generated, roughly ~9200/10000 or 92% of the CI's contained the true value, thus we can conclude that the 95% CI
+was not accurately estimated
+
+
+
+
+#Question 4a
+data <- readr::read_csv("pollution.csv")
+fit <- lm(co2 ~ gdp, data=data)
+fitted <- fitted(fit)
+residuals <- resid(fit)
+plot(fitted, residuals, ylab="Residuals")
+abline(0,0)
+n <- 187
+x <- data$gdp
+y <- data$co2
+beta_hat1 <- fit$coef[2]
+beta_hat0 <- fit$coef[1]
+#Question 4B
+png(file=paste0("D:/STAC67/testplot3.png"), width = 12, height = 6, units = 'in', res=300)
+par(mfrow=c(1,2))
+plotqq<-qqnorm(resid(fit), main = "Original (right skewed)", xlab = "Expected", ylab = "Actual", plot.it = TRUE, cex=0.4)
+plot(plotqq)
+
+
+#Question 4C
+
+k <- 4
+x_cutoff <- quantile(x, (1:(k-1))/k)
+g <- cut(x, breaks=c(-Inf, x_cutoff, +Inf), labels = 1:4)
+nj <- table(g)
+n <- sum(nj)
+y_tilde <- NULL
+for(j in 1:k)
+{
+  y_tilde_j <- median(y[g==j])  
+  y_tilde <- c(y_tilde, y_tilde_j)  
+}
+e <- abs(y - y_tilde[g])
+e_j <- NULL
+for(j in 1:k)
+{
+  e_j <- c(e_j, mean(e[g==j]))
+}
+e_bar <- mean(e)
+t_obs <- ((n - k)*sum(nj*(e_j - e_bar)^2)) / ((k - 1)*sum((e - e_j[g])^2))
+(pval <- pf(t_obs, k-1, n-k, lower.tail=FALSE))
+
+png(file=paste0("D:/STAC67/testplot.png"), width = 6, height = 6, units = 'in', res=300)
+plot(x, y, type = "p", xlab = "X", ylab = "Y") 
+abline(v=x_cutoff, col="red") 
+dev.off()
+
+png(file=paste0("D:/STAC67/testplot2.png"), width = 6, height = 6, units = 'in', res=300)
+plot(x, y, type = "p", xlab = "X", ylab = "Y")  
+abline(v=x_cutoff, col="red") 
+lines(c(0, x_cutoff[1]), c(y_tilde[1], y_tilde[1]), col="blue")
+lines(c(x_cutoff[1], x_cutoff[2]), c(y_tilde[2], y_tilde[2]), col="blue")
+lines(c(x_cutoff[2], x_cutoff[3]), c(y_tilde[3], y_tilde[3]), col="blue")
+lines(c(x_cutoff[3], 1), c(y_tilde[4], y_tilde[4]), col="blue")
+dev.off()
+
+
+
+#Question 4D
+lambda = seq(-2,2, by=0.1)
+bc_transform <- function(y, lambda)
+
+
+
+
+
+
+#Question 4e ii)
+plot(lambda, loglikelihood)
+```

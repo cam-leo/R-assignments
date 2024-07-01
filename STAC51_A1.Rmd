@@ -1,0 +1,263 @@
+---
+title: "STAC51 A1"
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+  pdf_document: default
+date: "2024-02-02"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+install.packages("binom")
+install.packages("rootSolve")
+## Question 1
+
+#a)
+
+Seasons is nominal (no inherent order or ranking)
+
+#b)
+
+Number of typos is ratio (ordered with consistent intervals and true zero point)
+
+#c)
+
+Employees rating of satisfaction is ordinal (meaningful order but intervals between them are not consistent)
+
+#d) 
+
+College student's SAT score is ratio (ordered with consistent intervals and true zero point)
+
+#e)
+
+Person's daily average level of activity is ordinal (meaningful order but intervals between them are not consistent)
+
+##Question 2
+
+```{r}
+library(binom)
+library(rootSolve)
+n <- 35
+y <- 28
+
+# (a) 
+wald_ci <- binom.confint(y, n, conf.level = 0.95, methods = "asymptotic")
+wald_ci
+
+alpha <- 0.05
+
+# (b) 
+ac_ci <- binom.confint(y, n, conf.level = 0.95, methods = "ac")
+ac_ci
+
+
+
+# (c) 
+likelihood_ratio_ci <- binom.confint(y, n, conf.level = 0.95, methods = "lrt")
+likelihood_ratio_ci
+
+# (d)
+clopper_pearson_ci <- binom.confint(y, n, methods = "exact", 1-alpha)
+clopper_pearson_ci
+
+
+
+```
+
+## Question 3
+
+```{r}
+# (a) 
+n <- 30
+p_employed_study <- 0.65
+p_employed_unrelated <- 0.25
+p_unemployed <- 0.10
+
+probability_a <- choose(n, 17) * choose(n - 17, 10) * (p_employed_study^17) * (p_employed_unrelated^10) * (p_unemployed^(n - 17 - 10))
+probability_a
+
+# (b) 
+k_unemployed <- 3
+probability2 <- choose(n, k_unemployed) * (p_unemployed^k_unemployed) * ((1 - p_unemployed)^(n - k_unemployed))
+probability2
+
+# (c) Calculate the conditional probability
+probability3 <- sum(dbinom(1:n, size = n, prob = p_employed_study) * dbinom(0:(n-1), size = n-1, prob = p_employed_unrelated)) / sum(dbinom(1:n, size = n, prob = p_employed_study) * dbinom(0:(n-1), size = n-1, prob = p_employed_unrelated))
+probability3
+
+
+```
+## Question 4
+
+```{r}
+# (a)i 
+n <- 40
+pi <- 0.05
+x_values <- 0:4
+
+probability_exact <- pbinom(max(x_values), size = n, prob = pi)
+probability_exact
+
+# (a)ii 
+lambda <- n * pi
+probability_poisson <- ppois(max(x_values), lambda)
+mean_normal <- n * pi
+sd_normal <- sqrt(n * pi * (1 - pi))
+probability_normal <- pnorm(max(x_values) + 0.5, mean_normal, sd_normal)  # Continuity correction
+
+result_comparison <- data.frame(
+  Method = c("Exact (Binomial)", "Poisson Approximation", "Normal Approximation"),
+  Probability = c(probability_exact, probability_poisson, probability_normal)
+)
+
+result_comparison
+
+# (b)i 
+pi_b <- 0.45
+x_values_b <- 0:10
+
+probability_exact_b <- pbinom(max(x_values_b), size = n, prob = pi_b)
+probability_exact_b
+
+# (b)ii 
+lambda_b <- n * pi_b
+probability_poisson_b <- ppois(max(x_values_b), lambda_b)
+mean_normal_b <- n * pi_b
+sd_normal_b <- sqrt(n * pi_b * (1 - pi_b))
+probability_normal_b <- pnorm(max(x_values_b) + 0.5, mean_normal_b, sd_normal_b)  # Continuity correction
+
+result_comparison_b <- data.frame(
+  Method = c("Exact (Binomial)", "Poisson Approximation", "Normal Approximation"),
+  Probability = c(probability_exact_b, probability_poisson_b, probability_normal_b)
+)
+
+result_comparison_b
+
+```
+
+## Question 5
+
+```{r}
+
+y <- c(53, 67, 58, 65, 69, 76, 59, 55, 66, 67)
+
+
+n <- length(y)
+mu <- 65
+
+
+likelihood_function <- function(v) {
+  a <- n / 2
+  b <- sum((y - mu)^2) / 2
+  return(v^(-a) * exp(-b / v))
+}
+
+
+v_values <- seq(25, 75, length.out = 1000)
+likelihood_values <- sapply(v_values, likelihood_function)
+max_likelihood_estimate <- v_values[which.max(likelihood_values)]
+
+plot(v_values, likelihood_values, type = "l", col = "blue", lwd = 2,
+     xlab = "v", ylab = "L(v)", main = "Likelihood Function")
+
+abline(v = max_likelihood_estimate, col = "red", lty = 2)
+points(max_likelihood_estimate, likelihood_function(max_likelihood_estimate), col = "red", pch = 16)
+
+cat("Maximum Likelihood Estimate of v:", max_likelihood_estimate, "\n")
+
+
+
+```
+
+
+
+## Question 6
+
+```{r}
+#a)
+
+n <- 14
+pi <- 0.4
+alpha <- 0.05
+
+
+critical_region <- qbinom(alpha, size = n, prob = pi, lower.tail = TRUE)
+critical_region
+
+#b)
+type_I_error_probability <- pbinom(critical_region, size = n, prob = pi, lower.tail = TRUE)
+type_I_error_probability
+
+
+```
+
+
+## Question 7
+
+```{r}
+# Part (a)
+n_a <- 10
+p_a <- 0.25
+x_a <- 0:n_a
+
+hist_data_a <- dbinom(x_a, size = n_a, prob = p_a)
+barplot(hist_data_a, names.arg = x_a, col = "skyblue", xlab = "Number of Successes", ylab = "Probability",
+        main = "Binomial Distribution (n = 10, p = 0.25)")
+
+# Part (b)
+n_b <- 10
+p_b <- 0.5
+x_b <- 0:n_b
+
+hist_data_b <- dbinom(x_b, size = n_b, prob = p_b)
+barplot(hist_data_b, names.arg = x_b, col = "lightgreen", xlab = "Number of Successes", ylab = "Probability",
+        main = "Binomial Distribution (n = 10, p = 0.5)")
+
+# Part (c)
+n_c <- 10
+p_c <- 0.75
+x_c <- 0:n_c
+
+hist_data_c <- dbinom(x_c, size = n_c, prob = p_c)
+barplot(hist_data_c, names.arg = x_c, col = "lightcoral", xlab = "Number of Successes", ylab = "Probability",
+        main = "Binomial Distribution (n = 10, p = 0.75)")
+
+# Part (d)
+n_d <- 100
+p_d <- 0.75
+x_d <- 0:n_d
+
+hist_data_d <- dbinom(x_d, size = n_d, prob = p_d)
+barplot(hist_data_d, names.arg = x_d, col = "lightpink", xlab = "Number of Successes", ylab = "Probability",
+        main = "Binomial Distribution (n = 100, p = 0.75)")
+
+
+
+```
+
+## Question 8
+
+```{r}
+# Part (a)
+lambda_a <- 2.5
+x_a <- 0:7
+
+hist_data_a <- dpois(x_a, lambda_a)
+barplot(hist_data_a, names.arg = x_a, col = "lightblue", xlab = "Number of Events", ylab = "Probability",
+        main = "Poisson Distribution (λ = 2.5)")
+
+# Part (b)
+lambda_b <- 20
+x_b <- 7:33
+
+hist_data_b <- dpois(x_b, lambda_b)
+barplot(hist_data_b, names.arg = x_b, col = "lightgreen", xlab = "Number of Events", ylab = "Probability",
+        main = "Poisson Distribution (λ = 20)")
+
+
+```
+
+
