@@ -84,29 +84,23 @@ n_cases <- cases_exposed + cases_not_exposed
 n_controls <- controls_exposed + controls_not_exposed
 eta_null <- 0.1
 
-binom_prob <- function(x, n, p) {
-  choose(n, x) * p^x * (1 - p)^(n - x)
-}
+# Exact conditional test of H0: log odds ratio = eta_null.
+# Conditional on the total number exposed (t), the number of exposed cases X follows a
+# noncentral hypergeometric distribution: P(X = x) is proportional to
+# choose(n_cases, x) * choose(n_controls, t - x) * exp(eta_null * x).
+# (The earlier version gave both groups the same success probability, so eta_null cancelled out,
+#  and it summed joint probabilities without dividing by P(X + Y = t), so the result wasn't a p-value.)
+t <- cases_exposed + controls_exposed
+x_values <- max(0, t - n_controls):min(n_cases, t)
+weights <- choose(n_cases, x_values) * choose(n_controls, t - x_values) * exp(eta_null * x_values)
+probs <- weights / sum(weights)
+p_observed <- probs[x_values == cases_exposed]
 
-likelihood_null <- binom_prob(cases_exposed, n_cases, exp(eta_null) / (1 + exp(eta_null))) * 
-                   binom_prob(controls_exposed, n_controls, exp(eta_null) / (1 + exp(eta_null)))
-p_value <- 0
-for (x in 0:n_cases) {
-  for (y in 0:n_controls) {
-    if (x + y == cases_exposed + controls_exposed) {
-      likelihood <- binom_prob(x, n_cases, exp(eta_null) / (1 + exp(eta_null))) * 
-                    binom_prob(y, n_controls, exp(eta_null) / (1 + exp(eta_null)))
-      
-      
-      if (likelihood >= likelihood_null) {
-        p_value <- p_value + likelihood
-      }
-    }
-  }
-}
-p_value
+p_value_two_sided <- sum(probs[probs <= p_observed + 1e-12])   # outcomes no more likely than the observed one
+p_value_upper <- sum(probs[x_values >= cases_exposed])         # one-sided: as many or more exposed cases
+c(two_sided = p_value_two_sided, one_sided_upper = p_value_upper)
 ```
-Our p-value here is 0.26298 which is greater than our null hypothesis value of 0.1, hence we reject the null hypothesis here.
+The two-sided p-value is about 0.49 (one-sided about 0.27). Both are well above 0.05, so we fail to reject the null hypothesis that the log odds ratio is 0.1. With only 8 subjects, the data can't distinguish this odds ratio from many others.
 
 ### Q3k)
 ```{r}
@@ -118,11 +112,14 @@ controls_not_exposed <- 3
 n_cases <- cases_exposed + cases_not_exposed
 n_controls <- controls_exposed + controls_not_exposed
 
-conditional_likelihood <- function(eta, n_cases, n_controls, cases_exposed) {
-  p <- exp(eta) / (1 + exp(eta))
-  likelihood_cases <- dbinom(cases_exposed, n_cases, p)
-  likelihood_controls <- dbinom(n_controls - cases_exposed, n_controls, p)
-  return(likelihood_cases * likelihood_controls)
+# Conditional likelihood of the log odds ratio eta, given the total number exposed:
+# L(eta) = choose(n1, x) choose(n0, t - x) exp(eta x) / sum over u of choose(n1, u) choose(n0, t - u) exp(eta u)
+# (The earlier version multiplied two binomials with the same probability, which peaks at eta = 0
+#  for any 2x2 table, so it always estimated an odds ratio of 1.)
+conditional_likelihood <- function(eta, n_cases, n_controls, cases_exposed, total_exposed = 4) {
+  u <- max(0, total_exposed - n_controls):min(n_cases, total_exposed)
+  weights <- choose(n_cases, u) * choose(n_controls, total_exposed - u) * exp(eta * u)
+  weights[u == cases_exposed] / sum(weights)
 }
 etas <- seq(-3, 3, 0.01)
 likelihoods <- sapply(etas, conditional_likelihood, n_cases, n_controls, cases_exposed)

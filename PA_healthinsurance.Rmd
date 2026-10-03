@@ -12,22 +12,15 @@ date: "2024-01-27"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-install.packages("tidyverse")
-install.packages("corrplot")
-install.packages("hexbin")
-install.packages("randomForest")
-install.packages("e1071")
-install.packages("shiny")
-install.packages("htmltools")
-install.packages("DT")
-
-install.packages("htmltools", version = "0.5.6", dependencies = TRUE)
-install.packages("DT", dependencies = TRUE)
+```{r install, eval = FALSE}
+# Run once if these packages aren't installed
+install.packages(c("tidyverse", "corrplot", "hexbin", "e1071", "shiny"))
+```
 
 ```{r}
 library(tidyverse)
-load("C:/Users/megacrazyleo/Documents/health_insurance.RData")
-data <- health_insurance %>% 
+# data/health_insurance.csv is the same data as the original health_insurance.RData
+data <- read.csv("data/health_insurance.csv") %>%
   mutate_if(is.character, as.factor)
 
 data %>% 
@@ -41,11 +34,11 @@ The max amount of children someone has is 5 whereas the lowest number of childre
 There are 1064 people who are non-smokers and 274 who are smokers. 
 The lowest BMI is 15.96 and the highest BMI is 53.13.
 There are 324 from the Northeast region, 325 from the Northwest, 364 from the Southeast and 325 from the Southwest.
-The average charges for an individial is 13270.
+The average charge per individual is 13,270.
 
-If we wanted, we could also just manually find these values by performing functions on the dataset itself.
+If we wanted, we could also just manually find these values by performing functions on the dataset itself. The number of people is the number of rows:
 ```{r}
-n <- ncol(data)
+n <- nrow(data)
 n
 ```
 
@@ -165,20 +158,24 @@ corrplot(cor_matrix, method = "color")
 
 ```
 
+```{r}
+round(cor_matrix, 2)
+```
+
 From this matrix we can infer a few things:
 
-1) Nothing here has a negative correlation, which indicates an overall positive correlation trend among all variables
+1) All correlations are positive, but most are weak.
 
-2) Age and BMI as well as BMI and charges have a slight positive correlation
+2) Age and charges have the strongest correlation, at about 0.30, followed by BMI and charges at about 0.20.
 
-3) Age and charges seems to have the biggest positive correlation at ~0.4
+3) Age and BMI are barely correlated (about 0.11), and the number of children is almost unrelated to everything else.
 
-This could imply that as age increases, so does BMI and charges as well
+These are simple pairwise correlations. They don't account for smoking, which turns out to matter far more than any of these variables (see below).
 
 
 ## Relationship between Smoking and Charges
 
-To see the relationship between smoking and charges, we can perform t-tests as well as chi-square tests:
+To see the relationship between smoking and charges, we can compare summary statistics and perform a t-test:
 ```{r}
 summary(data$charges[data$smoker == "yes"])
 summary(data$charges[data$smoker == "no"])
@@ -194,8 +191,8 @@ results<-t.test(data$charges[data$smoker == "yes"], data$charges[data$smoker == 
 print(results)
 ```
 
-At first glance, our t-value is a quite big which could suggest a large difference between the means of smokers and non-smokers for charges. Note that it is positive which implies that the smokers on average have a greater charge than non-smokers.
-If we look at our p-value, we can see it is significantly below 0.05 hence coupled with our t-value we can conclude that the t-test shows that smokers have significantly higher average charges than non-smokers
+At first glance, our t-value is large, which suggests a large difference between the mean charges of smokers and non-smokers. Note that it is positive which implies that the smokers on average have a greater charge than non-smokers.
+The p-value is far below 0.05, so smokers have significantly higher average charges than non-smokers. (This is Welch's t-test, which doesn't assume the two groups have equal variances. That matters here, since smokers' charges are much more spread out.)
 
 
 
@@ -244,7 +241,7 @@ lm_model <- lm(charges ~ bmi, data = data)
 summary(lm_model)
 
 ```
-Since our dataset is large, we can use a hexbin plot to further analyze the distribution. We can see that at a BMI of ~28-30, we have the highest density of people iwth insurance charges less than 10000. 
+Since our dataset is large, we can use a hexbin plot to further analyze the distribution. We can see that at a BMI of ~28-30, we have the highest density of people with insurance charges less than 10000. 
 
 ## Relationship between Age and Charges
 
@@ -359,23 +356,15 @@ Here, it is evident the older age groups spend more on charges than the groups p
 
 
 
-Suppose we want to predict what the insurance charges would be based on one's BMI.
+Suppose we want to predict what the insurance charges would be based on one's BMI alone.
 ```{r}
-Female <- filter(data, sex=="female") #this will be our independent variable
-pred_charge <- lm(charges ~ bmi, data=data)
+pred_charge <- lm(charges ~ bmi, data = data)
 summary(pred_charge)
-plot(pred_charge)
 ```
 
-
-Now suppose we want to predict the charges based on the sex and the bmi
+BMI alone explains only about 4% of the variation in charges (R-squared). Adding sex makes almost no difference:
 ```{r}
-data_female <- data[data$sex=="female",]
-female_predicted <- lm(charges ~ bmi, data=data_female)
-```
-
-```{r}
-children_predicted <- lm(charges~children, data=data)
+summary(lm(charges ~ bmi + sex, data = data))$adj.r.squared
 ```
 
 ## Relationship between Region and Charges
@@ -415,7 +404,17 @@ tukey_results <- TukeyHSD(anova_result)
 print(tukey_results)
 
 ```
-We can see from our tukey test that the p-value for the Southwest and Southeast regions is below 0.05, hence the means are significantly different. The other regions have p-values of ~0.05 or >0.05 therefore it is inconclusive about their differences in means.
+We can see from our Tukey test that the adjusted p-value for the southwest vs southeast comparison is just below 0.05 (0.048), so those means are significantly different. Southeast vs northwest is just above (0.058), and the other pairs are far from significant.
+
+Charges are very skewed and far more spread out for smokers, which strains ANOVA's equal-variance assumption, so treat these p-values as approximate. More importantly, the regions differ in who lives there:
+
+```{r}
+data %>%
+  group_by(region) %>%
+  summarise(share_smokers = mean(smoker == "yes"), mean_bmi = mean(bmi), mean_charges = mean(charges))
+```
+
+The southeast has the highest share of smokers and the highest average BMI. That alone could explain its higher average charges, which we check in the regression below.
 
 
 ```{r}
@@ -469,7 +468,9 @@ The BMI estimate is 339.2 which means that for every unit increase in BMI, the c
 The children estimate is 475.5 which means for every additional child an individual has, the charges increases by 475.5.
 For the smokeryes variable, this has an estimate of 23848.5 with a very small p-value. This means that if an individual is a smoker, then their charges are estimated to increase by 23848.5, by far the largest margin of the variables so far.
 
-We can see that the southeast region has an estimate of -1035 compared to our northeast region which seems to contradict our previous barplot. Hence check for normality of residuals and homoscedasticity.
+We can see that the southeast region has an estimate of -1035 compared to our northeast region, which seems to contradict our previous barplot. It doesn't: the barplot compared raw averages, while the regression compares people with the same age, BMI, children and smoking status. The southeast's higher raw average comes from its higher share of smokers and higher BMI (confounding). Once those are held constant, living in the southeast is associated with slightly lower charges.
+
+Next, we check the model's assumptions: normality of residuals and constant variance (homoscedasticity).
 
 ```{r}
 
@@ -481,13 +482,15 @@ plot(fitted(model), residuals(model), col = "blue", pch = 16,
      main = "Residuals vs. Fitted", xlab = "Fitted Values", ylab = "Residuals")
 
 ```
-We can also remove variables that are not significant in our regression ie those with p-val's greater than 0.05
+We can also try removing variables that are not significant in our regression. Note that region is one variable with three dummy columns, so it should be tested as a whole rather than column by column. An F-test comparing the models with and without sex and region does this:
 
 ```{r}
 model_new <- lm(charges ~ age + bmi + children + smoker, data = data2)
 summary(model_new)
-
+anova(model_new, model)
 ```
+
+The F-test's p-value is above 0.05, so dropping sex and region together doesn't make this model significantly worse.
 ```{r}
 qqnorm(residuals(model_new))
 qqline(residuals(model_new))
@@ -497,7 +500,7 @@ plot(fitted(model_new), residuals(model_new), col = "blue", pch = 16,
      main = "Residuals vs. Fitted", xlab = "Fitted Values", ylab = "Residuals")
 
 ```
-From our Q-Q plot, we can see that this data does not follow normality. From our homoscedasticity plot, the large gap indicates that we have non-constant variance of residuals. To fix our Q-Q plot, we can transform our charges:
+From our Q-Q plot, we can see that the residuals are not normal. The residuals vs fitted plot shows separate bands and a large gap rather than a random cloud. That pattern means the model is missing something, not just that the errors are unusual. One common response is to transform charges:
 
 ```{r}
 data2$log_charges <- log(data2$charges + 1)  # we add 1 here to handle zero values
@@ -514,7 +517,7 @@ qqnorm(residuals_log_model)
 qqline(residuals_log_model)
 
 ```
-We can still see deviation from normality even with log transform here.
+We can still see deviation from normality even with the log transform.
 
 ```{r}
 library(e1071)  
@@ -523,7 +526,7 @@ kurtosis(residuals_log_model)
 
 
 ```
-Our skewness being 1.603566 and our kurtosis being 4.176954 indicates that our distribution of residuals is not symmetric and possibly has heavy tails. Hence perform another transformation:
+A skewness of about 1.6 and an excess kurtosis of about 4.2 mean the residuals are not symmetric and have heavy tails. Robust regression (`rlm`) is one response. It is not a transformation: it gives less weight to observations with large residuals, so a few extreme charges have less influence on the fit:
 
 ```{r}
 library(MASS)
@@ -536,51 +539,68 @@ plot(model_robust)
 
 ```
 
-We will check for outliers for our homoscedasticity:
+### Fixing the model rather than the residuals
+
+Transforming charges and downweighting outliers treat the symptoms. The bands in the residual plot come from a missing interaction: smoking raises charges far more for people who are obese (BMI 30 or more) than for those who aren't. The earlier scatterplot showed this, with smokers' charges jumping once BMI passed 30. Charges also rise faster than linearly with age.
 
 ```{r}
-plot(model_transformed, which = 1)
-
+ggplot(data, aes(x = bmi, y = charges, colour = smoker)) +
+  geom_point(alpha = 0.6) +
+  geom_vline(xintercept = 30, linetype = "dashed") +
+  labs(title = "Smoking raises charges much more above BMI 30", x = "BMI", y = "Insurance Charges")
 ```
+
+Adding an obesity indicator, its interaction with smoking, and a squared age term:
+
 ```{r}
-data2$sqrt_charges <- sqrt(data2$charges)
-model_sqrt <- rlm(sqrt_charges ~ age + bmi + children + smoker, data = data2)
+data2$obese <- data2$bmi >= 30
+model_interaction <- lm(charges ~ age + I(age^2) + children + bmi + smoker * obese + sex + region, data = data2)
+summary(model_interaction)
 
+c(original = summary(model)$adj.r.squared, with_interaction = summary(model_interaction)$adj.r.squared)
 ```
+
+Adjusted R-squared rises from about 0.75 to about 0.87. The `smokeryes:obeseTRUE` estimate is the extra charge for smokers who are also obese, roughly 20,000 on top of the smoking effect.
+
+```{r}
+plot(fitted(model_interaction), residuals(model_interaction), col = "blue", pch = 16,
+     main = "Residuals vs. Fitted (interaction model)", xlab = "Fitted Values", ylab = "Residuals")
+abline(h = 0, lty = 2)
+```
+
+Most residuals now sit in one band around zero. The points well above it are a minority of non-smokers whose charges are far higher than anything in the data explains, such as an illness the dataset doesn't record. No transformation can fix that. It's a limit of the available variables.
 
 ## Prediction of an Individual's charges example
 
-Here we will do a quick example:
+Here we will do a quick example with the interaction model, for a 34-year-old male smoker from the northeast with a BMI of 27 and no children:
 ```{r}
-new_data <- data.frame(age = c(34), sex = factor(c("male")), bmi = c(27), children = c(0), smoker = factor(c("yes")), region = factor(c("northeast")))
-
-predictions <- predict(model_robust, newdata = new_data)
-print(predictions)
-prediction_interval <- predict(model_robust, newdata = new_data, interval = "prediction", level = 0.95)
-print(prediction_interval)
-
+new_data <- data.frame(age = 34, sex = "male", bmi = 27, children = 0, smoker = "yes",
+                       region = "northeast", obese = FALSE)
+predict(model_interaction, newdata = new_data, interval = "prediction", level = 0.95)
 ```
-To get our our predicted non-transformed value:
+
+The model predicts charges of about 19,500, with a 95% prediction interval of roughly 10,700 to 28,300. The interval is wide because individual charges vary a lot even among similar people. As a check, smokers aged 30-38 with a BMI under 30 in the data have median charges of about 19,400:
 ```{r}
-original_scale_predictions <- exp(predictions)
-print(original_scale_predictions)
+data %>% filter(smoker == "yes", bmi < 30, age >= 30, age <= 38) %>% summarise(n = n(), median_charges = median(charges))
 ```
-As we can see, a male of age 34 with a BMI of 27 and no children and is a smoker from the Northeast region would have a predicted charge of 20945.37 which is in line with our model and dataset.
+
+(An earlier version predicted from the robust model on the log scale and reported `exp()` of the prediction as the expected charge. That has two problems. The model was fitted to log(charges + 1), so the back-transform is `exp(prediction) - 1`. And exponentiating a predicted log value gives roughly the median charge, not the mean. `predict()` also doesn't produce valid prediction intervals for `rlm` models.)
 
 
 
 
 ```{r}
 # Check for missing/infinite values in 'age' and 'charges'
-any(is.infinite(data2$age))  
-any(is.infinite(data2$charges))  
-
+any(!is.finite(data2$age))
+any(!is.finite(data2$charges))
 ```
 
 
 ## Interactive histogram
 
-```{r}
+This app needs a live R session: run this chunk in RStudio. It is not evaluated in the static HTML.
+
+```{r, eval = FALSE}
 library(shiny)
 library(dplyr)
 
@@ -594,11 +614,8 @@ ui <- fluidPage(
       selectInput("variable", "Choose Variable:",
                   choices = c("age", "bmi"),
                   selected = "age"),
-      sliderInput("range", "Select Range:",
-                  min = min(data$age),
-                  max = max(data$age),
-                  value = c(min(data$age), max(data$age)),
-                  step = 1)
+      # The range slider is rebuilt for whichever variable is selected
+      uiOutput("range_slider")
     ),
     mainPanel(
       plotOutput("histogram")
@@ -608,8 +625,18 @@ ui <- fluidPage(
 
 
 server <- function(input, output) {
+  # The slider's limits follow the selected variable (age 18-64, BMI about 16-53).
+  # Before, the slider always used age limits, so choosing BMI filtered on age-sized numbers.
+  output$range_slider <- renderUI({
+    values <- data[[input$variable]]
+    sliderInput("range", "Select Range:",
+                min = floor(min(values)), max = ceiling(max(values)),
+                value = c(floor(min(values)), ceiling(max(values))), step = 1)
+  })
+
   # Reactive expression to filter data based on user inputs
   filtered_data <- reactive({
+    req(input$range)
     data %>%
       filter(get(input$variable) >= input$range[1],
              get(input$variable) <= input$range[2])
